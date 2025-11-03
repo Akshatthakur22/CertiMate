@@ -1,0 +1,64 @@
+version: '3.8'
+
+services:
+  certimate-api:
+    build:
+      context: ../
+      dockerfile: deployments/Dockerfile
+    container_name: certimate-api
+    ports:
+      - "8000:8000"
+    environment:
+      - HOST=0.0.0.0
+      - PORT=8000
+      - DEBUG=False
+      - MAX_UPLOAD_SIZE=52428800
+      - UPLOAD_DIR=uploads
+      - TESSERACT_CMD=/usr/bin/tesseract
+      - LOG_LEVEL=INFO
+      - LOG_FILE=logs/certimate.log
+    volumes:
+      - ../uploads:/app/uploads
+      - ../logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - certimate-network
+    deploy:
+      resources:
+        limits:
+          cpus: '2'
+          memory: 2G
+        reservations:
+          cpus: '1'
+          memory: 1G
+
+  nginx:
+    image: nginx:alpine
+    container_name: certimate-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../logs/nginx:/var/log/nginx
+    depends_on:
+      certimate-api:
+        condition: service_healthy
+    restart: unless-stopped
+    networks:
+      - certimate-network
+    healthcheck:
+      test: ["CMD", "nginx", "-t"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+networks:
+  certimate-network:
+    driver: bridge
