@@ -15,7 +15,7 @@ router = APIRouter(prefix="/upload", tags=["upload"])
 async def upload_template(file: UploadFile = File(...)):
     """
     Upload certificate template (PDF or image file)
-    Saves to uploads/templates directory
+    Saves to uploads/templates directory   helloo sexy babe
     """
     try:
         # Validate file extension - allow PDF and common image formats
