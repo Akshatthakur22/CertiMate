@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { UploadCloud, File, X, Check } from "lucide-react";
@@ -16,6 +16,8 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -31,12 +33,25 @@ export default function UploadPage() {
     e.preventDefault();
     setIsDragging(false);
     
+    if (e.dataTransfer.files && e.dataTransfer.files.length > 1) {
+      toast.error("Please upload only one file.");
+      return;
+    }
+
     const droppedFile = e.dataTransfer.files[0];
     if (droppedFile) {
       const validTypes = ['image/png', 'image/jpeg', 'application/pdf'];
-      if (validTypes.includes(droppedFile.type)) {
-        setFile(droppedFile);
+      if (!validTypes.includes(droppedFile.type)) {
+        toast.error("Invalid file type. Please upload PNG, JPG, or PDF.");
+        return;
       }
+
+      if (droppedFile.size > MAX_FILE_SIZE_BYTES) {
+        toast.error("File too large. Maximum allowed size is 10MB.");
+        return;
+      }
+
+      setFile(droppedFile);
     }
   }, []);
 
@@ -48,13 +63,25 @@ export default function UploadPage() {
       console.log("File type:", selectedFile.type);
       const validTypes = ['image/png', 'image/jpeg', 'application/pdf'];
       
-      if (validTypes.includes(selectedFile.type)) {
-        setFile(selectedFile);
-        console.log("File accepted and set");
-      } else {
+      if (!validTypes.includes(selectedFile.type)) {
         console.log("Invalid file type:", selectedFile.type);
         toast.error("Invalid file type. Please upload PNG, JPG, or PDF.");
+        // reset input so selecting the same file again will retrigger change
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
       }
+
+      if (selectedFile.size > MAX_FILE_SIZE_BYTES) {
+        console.log("File too large:", selectedFile.size);
+        toast.error("File too large. Maximum allowed size is 10MB.");
+        if (fileInputRef.current) fileInputRef.current.value = "";
+        return;
+      }
+
+      setFile(selectedFile);
+      console.log("File accepted and set");
+      // allow reselecting the same file by clearing input value
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   }, []);
 
@@ -89,6 +116,16 @@ export default function UploadPage() {
     }
   }, [file, router]);
 
+  // Generate preview URL for images
+  useEffect(() => {
+    if (file && file.type.startsWith("image/")) {
+      const url = URL.createObjectURL(file);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPreviewUrl(null);
+  }, [file]);
+
   const getFileIcon = (type: string) => {
     if (type.includes('pdf')) return '📄';
     return '🖼️';
@@ -104,8 +141,9 @@ export default function UploadPage() {
 
   return (
     <PageLayout>
-      <div className="min-h-screen py-12 sm:py-20 px-4 bg-gradient-to-br from-background via-primary/5">
-        <div className="container max-w-4xl mx-auto">
+      {/* Background gradient aligned with landing */}
+      <div className="min-h-screen py-12 sm:py-20 px-4 bg-gradient-to-b from-white via-indigo-50/30 to-white">
+        <div className="container max-w-3xl mx-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
@@ -163,13 +201,15 @@ export default function UploadPage() {
             </div>
           </motion.div>
 
-          {/* Upload Area */}
+          {/* Upload Area - gradient border dropzone */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3, duration: 0.5 }}
           >
-            <Card className={`border-2 border-dashed transition-all duration-300 ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}>
+            {/* Outer wrapper gives a subtle gradient border */}
+            <div className={`rounded-2xl p-[1px] bg-gradient-to-r from-indigo-200/60 via-indigo-500/20 to-indigo-200/60 transition-all ${isDragging ? 'from-indigo-300 via-indigo-500/30 to-indigo-300' : ''}`}>
+            <Card className={`rounded-[15px] border-2 border-dashed transition-all duration-300 ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}>
               {!file ? (
                 <CardContent className="p-6 sm:p-12">
                   <div
@@ -177,7 +217,7 @@ export default function UploadPage() {
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
-                    className={`text-center cursor-pointer transition-colors ${
+                    className={`text-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 rounded-xl ${
                       isDragging ? 'bg-primary/5' : ''
                     }`}
                     role="button"
@@ -213,21 +253,31 @@ export default function UploadPage() {
                     <BrandButton
                       variant="outline"
                       size="default"
-                      onClick={() => fileInputRef.current?.click()}
+                      onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
                       className="cursor-pointer"
                     >
                       Select File
                     </BrandButton>
                     <p className="text-xs sm:text-sm text-muted-foreground mt-4">
-                      Supported formats: PNG, JPG, PDF (Max 10MB)
+                      Supported: PNG, JPG, PDF • Max 10MB
                     </p>
                   </div>
                 </CardContent>
               ) : (
                 <CardContent className="p-4 sm:p-6">
+                  {/* Selected file summary + preview */}
                   <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3 sm:p-4">
-                    <div className="flex items-center space-x-3 sm:space-x-4 flex-1 min-w-0">
-                      <span className="text-2xl sm:text-4xl flex-shrink-0">{getFileIcon(file.type)}</span>
+                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                      {previewUrl ? (
+                        <img src={previewUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 rounded-md object-cover border" />
+                      ) : (
+                        <div className="flex items-center gap-2 flex-shrink-0">
+                          <span className="text-2xl sm:text-4xl">{getFileIcon(file.type)}</span>
+                          {file.type.includes('pdf') && (
+                            <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">PDF</span>
+                          )}
+                        </div>
+                      )}
                       <div className="min-w-0 flex-1">
                         <p className="font-medium text-foreground text-sm sm:text-base truncate">{file.name}</p>
                         <p className="text-xs sm:text-sm text-muted-foreground">
@@ -243,9 +293,24 @@ export default function UploadPage() {
                       <X className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground" />
                     </button>
                   </div>
+
+                  {/* Indeterminate progress / skeleton while uploading */}
+                  {isUploading && (
+                    <div className="mt-4">
+                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                        <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-indigo-400 via-indigo-600 to-indigo-400 animate-[pulse_1.2s_ease-in-out_infinite]" />
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-2">Uploading… please wait</p>
+                    </div>
+                  )}
                 </CardContent>
               )}
             </Card>
+            {/* Live region for screen readers announcing status */}
+            <span className="sr-only" role="status" aria-live="polite">
+              {isUploading ? 'Uploading template…' : file ? `${file.name} selected` : 'No file selected'}
+            </span>
+            </div>
           </motion.div>
 
           {/* Actions */}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { toast } from "sonner";
@@ -26,41 +26,81 @@ export default function MappingPage() {
   const [csvFile, setCsvFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [isGenerating, setIsGenerating] = useState(false);
+  const csvInputRef = useRef<HTMLInputElement>(null);
+  const MAX_CSV_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
 
   const handleCSVUpload = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file && file.type === "text/csv") {
-      setCsvFile(file);
-      
-      // Parse CSV for preview
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        const text = event.target?.result as string;
-        const lines = text.split("\n").filter((line) => line.trim());
-        const headers = lines[0].split(",");
-        const rows = lines.slice(1).map((line) => line.split(","));
+    if (!file) return;
 
-        setCsvData({
-          headers,
-          rows: rows.slice(0, 5), // Preview first 5 rows
-        });
-      };
-      reader.readAsText(file);
+    // Validate type and size
+    const isCsvType = file.type === "text/csv" || file.name.toLowerCase().endsWith(".csv");
+    if (!isCsvType) {
+      toast.error("Invalid file type. Please upload a CSV file.");
+      if (csvInputRef.current) csvInputRef.current.value = "";
+      return;
+    }
+    if (file.size > MAX_CSV_SIZE_BYTES) {
+      toast.error("File too large. Maximum allowed size is 10MB.");
+      if (csvInputRef.current) csvInputRef.current.value = "";
+      return;
+    }
 
-      // Upload CSV to backend
-      setIsUploading(true);
-      try {
-        const result = await uploadCSV(file);
-        toast.success(result.message || "CSV uploaded successfully!");
-      } catch (error: any) {
-        console.error("CSV upload error:", error);
-        const errorMessage = error.response?.data?.detail || error.message || "Failed to upload CSV";
-        toast.error(errorMessage);
-      } finally {
-        setIsUploading(false);
+    setCsvFile(file);
+
+    // Parse CSV for preview (simple split; assumes no quoted commas)
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const text = (event.target?.result as string) || "";
+      const lines = text.split("\n").filter((line) => line.trim());
+      if (lines.length === 0) {
+        toast.error("CSV appears to be empty.");
+        return;
       }
+      const headers = lines[0].split(",").map((h) => h.trim());
+      const rows = lines
+        .slice(1)
+        .map((line) => line.split(",").map((c) => c.trim()))
+        .filter((r) => r.length > 0);
+
+      setCsvData({ headers, rows });
+
+      // Auto-detect mapping by common header names
+      const lowerHeaders = headers.map((h) => h.toLowerCase());
+      const findHeader = (patterns: RegExp[]) => {
+        for (const pattern of patterns) {
+          const idx = lowerHeaders.findIndex((h) => pattern.test(h));
+          if (idx !== -1) return headers[idx];
+        }
+        return "";
+      };
+      setMapping((prev) => ({
+        ...prev,
+        name: prev.name || findHeader([/name/, /full\s*name/]),
+        role: prev.role || findHeader([/role/, /title/, /position/]),
+        date: prev.date || findHeader([/date/, /issued/, /certificate\s*date/]),
+      }));
+    };
+    reader.readAsText(file);
+
+    // Upload CSV to backend
+    setIsUploading(true);
+    try {
+      const result = await uploadCSV(file);
+      toast.success(result.message || "CSV uploaded successfully!");
+      sessionStorage.setItem("csvFilename", file.name);
+    } catch (error: any) {
+      console.error("CSV upload error:", error);
+      const errorMessage = error.response?.data?.detail || error.message || "Failed to upload CSV";
+      toast.error(errorMessage);
+    } finally {
+      setIsUploading(false);
+      // Reset input so selecting same file retriggers change
+      if (csvInputRef.current) csvInputRef.current.value = "";
     }
   }, []);
+
+  // (Google Sheets public import removed by request)
 
   const handleGenerate = async () => {
     if (!mapping.name) {
@@ -94,11 +134,20 @@ export default function MappingPage() {
     }
   };
 
-  const sampleData = [
-    ["John Doe", "Software Engineer", "2024-01-15"],
-    ["Jane Smith", "Product Manager", "2024-01-16"],
-    ["Mike Johnson", "Designer", "2024-01-17"],
-  ];
+  // Persist and restore mapping between navigations
+  useEffect(() => {
+    const saved = sessionStorage.getItem("mapping");
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        setMapping((prev) => ({ ...prev, ...parsed }));
+      } catch {}
+    }
+  }, []);
+
+  useEffect(() => {
+    sessionStorage.setItem("mapping", JSON.stringify(mapping));
+  }, [mapping]);
 
   return (
     <PageLayout>
@@ -197,6 +246,7 @@ export default function MappingPage() {
                         onChange={handleCSVUpload}
                         className="hidden"
                         id="csv-upload"
+                        ref={csvInputRef}
                       />
                     </div>
                   ) : (
@@ -305,7 +355,7 @@ export default function MappingPage() {
                             </tr>
                           </thead>
                           <tbody className="bg-card divide-y divide-border">
-                            {sampleData.map((row, rowIndex) => (
+                            {csvData.rows.slice(0, 3).map((row, rowIndex) => (
                               <tr key={rowIndex}>
                                 {row.map((cell, cellIndex) => (
                                   <td
@@ -328,6 +378,10 @@ export default function MappingPage() {
           </div>
 
           {/* Actions */}
+          {/* Live region for screen readers announcing status */}
+          <span className="sr-only" role="status" aria-live="polite">
+            {isUploading ? 'Uploading CSV…' : csvFile ? `${csvFile.name} selected` : 'No CSV selected'}
+          </span>
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
