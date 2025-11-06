@@ -162,7 +162,8 @@ class EmailService:
         recipient_name: str,
         certificate_path: str,
         subject: str = "Your Certificate is Ready!",
-        body_template: str = "Hi {{name}},\n\nCongratulations! Your certificate is attached.\n\nBest regards,\nThe CertiMate Team"
+        body_template: str = "Hi {{name}},\n\nCongratulations! Your certificate is attached.\n\nBest regards,\nThe CertiMate Team",
+        event_name: str = None
     ) -> Dict[str, any]:
         """
         Send a certificate via email using Gmail API
@@ -172,8 +173,9 @@ class EmailService:
             recipient_email: Recipient's email address
             recipient_name: Recipient's name (for personalization)
             certificate_path: Path to certificate file
-            subject: Email subject
-            body_template: Email body template with {{name}} placeholder
+            subject: Email subject (can contain {{name}} and {{event}} placeholders)
+            body_template: Email body template with {{name}} and {{event}} placeholders
+            event_name: Optional event/course name for {{event}} placeholder
             
         Returns:
             Dictionary with success status and message ID
@@ -182,8 +184,15 @@ class EmailService:
             Exception: If sending fails
         """
         try:
+            # Build personalized subject
+            personalized_subject = subject.replace('{{name}}', recipient_name)
+            if event_name:
+                personalized_subject = personalized_subject.replace('{{event}}', event_name)
+            
             # Build personalized body
             body = body_template.replace('{{name}}', recipient_name)
+            if event_name:
+                body = body.replace('{{event}}', event_name)
             
             # Build Gmail service
             service = await EmailService.build_gmail_service(access_token)
@@ -191,7 +200,7 @@ class EmailService:
             # Create message
             message = EmailService.create_message_with_attachment(
                 to=recipient_email,
-                subject=subject,
+                subject=personalized_subject,
                 body=body,
                 attachment_path=certificate_path
             )
@@ -220,7 +229,10 @@ class EmailService:
     async def send_certificates_batch(
         access_token: str,
         recipients: List[Dict[str, str]],
-        certificates_dir: str = "uploads/certificates"
+        certificates_dir: str = "uploads/certificates",
+        subject: str = "Your Certificate is Ready!",
+        body_template: str = "Hi {{name}},\n\nCongratulations! Your certificate is attached.\n\nBest regards,\nThe CertiMate Team",
+        event_name: str = None
     ) -> Dict[str, any]:
         """
         Send certificates to multiple recipients
@@ -229,6 +241,9 @@ class EmailService:
             access_token: OAuth 2.0 access token
             recipients: List of dicts with 'email', 'name', and optionally 'certificate_filename'
             certificates_dir: Directory containing certificate files
+            subject: Email subject (can contain {{name}} and {{event}} placeholders)
+            body_template: Email body template with {{name}} and {{event}} placeholders
+            event_name: Optional event/course name for {{event}} placeholder
             
         Returns:
             Dictionary with success/failure counts and details
@@ -271,7 +286,10 @@ class EmailService:
                 access_token=access_token,
                 recipient_email=email,
                 recipient_name=name,
-                certificate_path=certificate_path
+                certificate_path=certificate_path,
+                subject=subject,
+                body_template=body_template,
+                event_name=event_name
             )
             
             if result.get('success'):

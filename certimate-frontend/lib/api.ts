@@ -299,6 +299,7 @@ export interface SendEmailRequest {
   subject?: string;
   body_template?: string;
   certificates_dir?: string;
+  event_name?: string; // For {{event}} placeholder
 }
 
 export interface SendEmailResponse {
@@ -329,6 +330,36 @@ export async function sendCertificateEmail(
 
   const response = await api.post<SendEmailResponse>(
     endpoints.sendEmail,
+    request
+  );
+  return response.data;
+}
+
+/**
+ * Preview email with personalized content
+ */
+export interface EmailPreviewRequest {
+  subject: string;
+  body_template: string;
+  recipient_name?: string;
+  event_name?: string;
+}
+
+export interface EmailPreviewResponse {
+  success: boolean;
+  preview: {
+    subject: string;
+    body: string;
+    recipient_name: string;
+    event_name: string;
+  };
+}
+
+export async function previewEmail(
+  request: EmailPreviewRequest
+): Promise<EmailPreviewResponse> {
+  const response = await api.post<EmailPreviewResponse>(
+    `${endpoints.sendEmail}/preview`,
     request
   );
   return response.data;
