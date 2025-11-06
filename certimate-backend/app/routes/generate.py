@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 import logging
+import uuid
 from app.services.csv_service import CSVService
 from app.services.placeholder import PlaceholderService
 from app.services.placeholder_advanced import AdvancedPlaceholderService
@@ -18,6 +19,9 @@ audit_logger = CSVAuditLogger()
 
 router = APIRouter(prefix="/generate", tags=["generate"])
 
+# Simple in-memory job store (in production, use Redis or database)
+job_store: dict = {}
+
 
 class GenerateRequest(BaseModel):
     """Request schema for certificate generation"""
@@ -26,6 +30,18 @@ class GenerateRequest(BaseModel):
     names: Optional[List[str]] = None
     placeholder_text: str = "{{NAME}}"
     output_format: str = "pdf"
+
+
+class MappingConfig(BaseModel):
+    """Mapping configuration for CSV columns to certificate fields"""
+    name: str
+    role: Optional[str] = None
+    date: Optional[str] = None
+
+
+class GenerateWithMappingRequest(BaseModel):
+    """Request schema for certificate generation with mapping config"""
+    mapping: MappingConfig
 
 
 @router.post("/preview")
@@ -115,7 +131,11 @@ async def generate_preview(request: GenerateRequest):
 
 
 @router.post("/batch")
-async def generate_batch(background_tasks: BackgroundTasks, placeholder_text: str = "{{NAME}}"):
+async def generate_batch(
+    background_tasks: BackgroundTasks,
+    request: Optional[GenerateWithMappingRequest] = None,
+    placeholder_text: str = "{{NAME}}"
+):
     """
     Generate certificates using the latest uploaded template and CSV
     
@@ -165,8 +185,32 @@ async def generate_batch(background_tasks: BackgroundTasks, placeholder_text: st
         
         logger.info(f"Batch generation started with template: {template_path} and CSV: {csv_path}")
         
-        # Get names from CSV
-        names = CSVService.get_names_from_csv(csv_path)
+        # Get data from CSV using mapping if provided
+        df = CSVService.read_csv(csv_path)
+        
+        if request and request.mapping:
+            # Use mapping to extract data
+            logger.info(f"Using mapping config: {request.mapping.dict()}")
+            
+            # Validate mapping columns exist
+            if request.mapping.name not in df.columns:
+                raise HTTPException(
+                    status_code=400,
+                    detail={
+                        "error": "Missing column",
+                        "details": f"Column '{request.mapping.name}' not found in CSV",
+                        "available_columns": df.columns.tolist()
+                    }
+                )
+            
+            # Extract names using mapped column
+            names = df[request.mapping.name].dropna().astype(str).str.strip().tolist()
+            names = [n for n in names if n]  # Remove empty strings
+            
+            logger.info(f"Extracted {len(names)} names using mapping column: {request.mapping.name}")
+        else:
+            # Fallback to auto-detection
+            names = CSVService.get_names_from_csv(csv_path)
         
         if not names:
             raise HTTPException(
@@ -241,8 +285,20 @@ async def generate_batch(background_tasks: BackgroundTasks, placeholder_text: st
         
         logger.info(f"Generated {len(generated_files)} certificates and created ZIP file")
         
+        # Generate job ID for async tracking
+        job_id = str(uuid.uuid4())
+        job_store[job_id] = {
+            "status": "completed",
+            "num_certificates": len(generated_files),
+            "successful": successful_count,
+            "failed": failed_count,
+            "download_url": f"/api/generate/download/{os.path.basename(zip_path)}"
+        }
+        
         return {
             "message": "Certificates generated successfully",
+            "job_id": job_id,
+            "status": "completed",
             "template": latest["template"]["filename"],
             "csv": latest["csv"]["filename"],
             "num_certificates": len(generated_files),
@@ -407,11 +463,26 @@ async def download_certificates(filename: str):
 async def get_generation_status(job_id: str):
     """
     Get the status of a certificate generation job
-    TODO: Implement job status tracking
+    
+    Returns:
+        Job status with progress information
     """
+    if job_id not in job_store:
+        raise HTTPException(
+            status_code=404,
+            detail=f"Job {job_id} not found"
+        )
+    
+    job = job_store[job_id]
+    logger.info(f"Retrieved status for job {job_id}: {job['status']}")
+    
     return {
         "job_id": job_id,
-        "status": "pending"
+        "status": job["status"],
+        "num_certificates": job.get("num_certificates", 0),
+        "successful": job.get("successful", 0),
+        "failed": job.get("failed", 0),
+        "download_url": job.get("download_url")
     }
 
 

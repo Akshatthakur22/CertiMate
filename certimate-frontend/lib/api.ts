@@ -47,6 +47,10 @@ export const endpoints = {
   download: "/api/generate/download",     // Backend uses /api/generate/download/{filename}
   sendEmail: "/api/send/email",          // Backend uses /api/send/email
   csvContent: "/api/upload/csv/content", // Backend uses /api/upload/csv/content
+  validateMapping: "/api/mapping/validate", // Backend uses /api/mapping/validate
+  generatePreview: "/api/mapping/preview", // Backend uses /api/mapping/preview
+  analyzeCSV: "/api/mapping/analyze-csv",   // Backend uses /api/mapping/analyze-csv
+  jobStatus: "/api/generate/status",        // Backend uses /api/generate/status/{job_id}
 };
 
 // API functions
@@ -65,6 +69,8 @@ export interface UploadCSVResponse {
 
 export interface GenerateResponse {
   message: string;
+  job_id?: string;
+  status?: string;
   num_certificates: number;
   successful: number;
   failed: number;
@@ -151,8 +157,122 @@ export async function getCSVContent(): Promise<CSVContentResponse> {
 /**
  * Generate certificates using batch endpoint
  */
-export async function generateBatch(): Promise<GenerateResponse> {
-  const response = await api.post<GenerateResponse>(endpoints.generateBatch);
+export interface MappingConfig {
+  name: string;
+  role?: string;
+  date?: string;
+}
+
+export interface GenerateWithMappingRequest {
+  mapping: MappingConfig;
+}
+
+export async function generateBatch(mapping?: MappingConfig): Promise<GenerateResponse> {
+  const requestBody = mapping ? { mapping } : undefined;
+  const response = await api.post<GenerateResponse>(
+    endpoints.generateBatch,
+    requestBody,
+    {
+      params: { placeholder_text: "{{NAME}}" }
+    }
+  );
+  return response.data;
+}
+
+/**
+ * Validate mapping configuration
+ */
+export interface ValidateMappingResponse {
+  success: boolean;
+  message: string;
+  validation: {
+    name: { valid: boolean; error: string | null; details?: string };
+    role: { valid: boolean; error: string | null };
+    date: { valid: boolean; error: string | null };
+  };
+  preview_data: {
+    name: string;
+    role: string;
+    date: string;
+  };
+  csv_stats: {
+    total_rows: number;
+    total_columns: number;
+    columns: string[];
+  };
+}
+
+export async function validateMapping(
+  mapping: MappingConfig
+): Promise<ValidateMappingResponse> {
+  const response = await api.post<ValidateMappingResponse>(
+    endpoints.validateMapping,
+    { mapping }
+  );
+  return response.data;
+}
+
+/**
+ * Generate preview certificate image
+ */
+export interface PreviewResponse {
+  success: boolean;
+  message: string;
+  preview_image: string; // base64 data URL
+  preview_data: {
+    name: string;
+    role: string;
+    date: string;
+  };
+}
+
+export async function generatePreview(
+  mapping: MappingConfig,
+  rowIndex: number = 0
+): Promise<PreviewResponse> {
+  const response = await api.post<PreviewResponse>(
+    endpoints.generatePreview,
+    { mapping, row_index: rowIndex }
+  );
+  return response.data;
+}
+
+/**
+ * Analyze CSV file and return column information
+ */
+export interface AnalyzeCSVResponse {
+  success: boolean;
+  message: string;
+  csv_stats: {
+    filename: string;
+    total_rows: number;
+    total_columns: number;
+    columns: string[];
+  };
+  sample_data: Array<Record<string, any>>;
+}
+
+export async function analyzeCSV(): Promise<AnalyzeCSVResponse> {
+  const response = await api.get<AnalyzeCSVResponse>(endpoints.analyzeCSV);
+  return response.data;
+}
+
+/**
+ * Get job status
+ */
+export interface JobStatusResponse {
+  job_id: string;
+  status: "queued" | "processing" | "completed" | "failed";
+  num_certificates?: number;
+  successful?: number;
+  failed?: number;
+  download_url?: string;
+}
+
+export async function getJobStatus(jobId: string): Promise<JobStatusResponse> {
+  const response = await api.get<JobStatusResponse>(
+    `${endpoints.jobStatus}/${jobId}`
+  );
   return response.data;
 }
 
