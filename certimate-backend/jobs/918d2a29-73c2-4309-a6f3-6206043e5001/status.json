@@ -1,0 +1,14 @@
+{
+  "job_id": "918d2a29-73c2-4309-a6f3-6206043e5001",
+  "status": "queued",
+  "created_at": "2025-12-03T16:07:40.854784",
+  "updated_at": "2025-12-03T16:07:40.854791",
+  "total_items": 5,
+  "processed_items": 0,
+  "successful_items": 0,
+  "failed_items": 0,
+  "metadata": {
+    "template": "certificate_template.png",
+    "csv": "students.csv"
+  }
+}

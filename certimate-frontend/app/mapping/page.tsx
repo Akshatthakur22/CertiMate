@@ -344,18 +344,20 @@ export default function MappingPage() {
       };
 
       const result = await generateBatch(mappingConfig);
-      toast.success(result.message || "Certificates generated successfully!");
 
-      // Store download URL and stats in session
-      sessionStorage.setItem("downloadUrl", result.download_url);
-      sessionStorage.setItem("numCertificates", result.num_certificates.toString());
-      sessionStorage.setItem("successful", result.successful.toString());
-      sessionStorage.setItem("failed", result.failed.toString());
       if (result.job_id) {
+        toast.success("Generation started! Processing in background.");
         sessionStorage.setItem("jobId", result.job_id);
-      }
+        // Clear previous results
+        sessionStorage.removeItem("downloadUrl");
+        sessionStorage.removeItem("numCertificates");
+        sessionStorage.removeItem("successful");
+        sessionStorage.removeItem("failed");
 
-      router.push("/generate");
+        router.push("/generate");
+      } else {
+        throw new Error("No job ID returned from server");
+      }
     } catch (error: any) {
       console.error("Generation error:", error);
       const errorMessage =
@@ -395,7 +397,7 @@ export default function MappingPage() {
       try {
         const parsed = JSON.parse(saved);
         setMapping((prev) => ({ ...prev, ...parsed }));
-      } catch {}
+      } catch { }
     }
   }, []);
 
@@ -406,21 +408,21 @@ export default function MappingPage() {
   // Get preview data from first row
   const previewData = csvData
     ? {
-        name: mapping.name
-          ? csvData.rows[0]?.[csvData.headers.indexOf(mapping.name)] || "Name"
-          : "Name",
-        role: mapping.role
-          ? csvData.rows[0]?.[csvData.headers.indexOf(mapping.role)] || "Role/Title"
-          : "Role/Title",
-        date: mapping.date
-          ? csvData.rows[0]?.[csvData.headers.indexOf(mapping.date)] || "Date"
-          : "Date",
-      }
+      name: mapping.name
+        ? csvData.rows[0]?.[csvData.headers.indexOf(mapping.name)] || "Name"
+        : "Name",
+      role: mapping.role
+        ? csvData.rows[0]?.[csvData.headers.indexOf(mapping.role)] || "Role/Title"
+        : "Role/Title",
+      date: mapping.date
+        ? csvData.rows[0]?.[csvData.headers.indexOf(mapping.date)] || "Date"
+        : "Date",
+    }
     : null;
 
   return (
     <PageLayout>
-      <div className="min-h-screen py-8 sm:py-12 md:py-16 px-4 bg-gradient-to-br from-white via-indigo-50/30 to-white">
+      <div className="min-h-screen py-6 sm:py-8 md:py-12 lg:py-16 px-4 sm:px-6 bg-gradient-to-br from-white via-indigo-50/30 to-white">
         {/* Background glow effect */}
         <div className="fixed inset-0 bg-[radial-gradient(circle_at_50%_0%,rgba(99,102,241,0.05),transparent_70%)] pointer-events-none" />
 
@@ -430,17 +432,17 @@ export default function MappingPage() {
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-8 sm:mb-12"
+            className="text-center mb-6 sm:mb-8 md:mb-12"
           >
-            <div className="inline-flex items-center gap-2 mb-4 px-4 py-1.5 rounded-full bg-indigo-100/80 text-indigo-700 text-sm font-medium">
+            <div className="inline-flex items-center gap-2 mb-3 sm:mb-4 px-3 sm:px-4 py-1.5 rounded-full bg-indigo-100/80 text-indigo-700 text-xs sm:text-sm font-medium">
               <span>Step 2 of 3</span>
               <span className="text-indigo-400">•</span>
               <span>Map Your Data</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-2 sm:mb-3 md:mb-4">
               Map Your Data
             </h1>
-            <p className="text-base sm:text-lg text-gray-600 max-w-2xl mx-auto">
+            <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto px-2 sm:px-4">
               Match your CSV columns with certificate fields. We'll handle the rest.
             </p>
           </motion.div>
@@ -489,9 +491,9 @@ export default function MappingPage() {
           )}
 
           {/* Main Content Grid */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 md:gap-8 mb-8">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 md:gap-8 mb-6 sm:mb-8">
             {/* Left Column - CSV Upload & Mapping */}
-            <div className="lg:col-span-2 space-y-6">
+            <div className="lg:col-span-2 space-y-4 sm:space-y-6">
               {/* CSV Upload Card */}
               <motion.div
                 initial={{ opacity: 0, x: -20 }}
@@ -528,11 +530,10 @@ export default function MappingPage() {
                         onDragLeave={handleDragLeave}
                         onDrop={handleDrop}
                         onClick={() => csvInputRef.current?.click()}
-                        className={`relative border-2 border-dashed rounded-xl p-8 sm:p-12 text-center transition-all duration-300 cursor-pointer ${
-                          isDragging
+                        className={`relative border-2 border-dashed rounded-xl p-6 sm:p-8 md:p-12 text-center transition-all duration-300 cursor-pointer ${isDragging
                             ? "border-indigo-400 bg-indigo-50/50 scale-[1.02]"
                             : "border-gray-300 hover:border-indigo-300 hover:bg-indigo-50/30"
-                        }`}
+                          }`}
                       >
                         <input
                           type="file"
@@ -560,8 +561,8 @@ export default function MappingPage() {
                         >
                           <BrandButton
                             variant="outline"
-                            size="sm"
-                            className="border-indigo-200 text-indigo-600 hover:bg-indigo-50"
+                            size="default"
+                            className="border-indigo-200 text-indigo-600 hover:bg-indigo-50 min-h-[44px]"
                             disabled={isUploading}
                             onClick={(e) => {
                               e.stopPropagation();
@@ -570,12 +571,12 @@ export default function MappingPage() {
                           >
                             {isUploading ? (
                               <>
-                                <RefreshCw className="h-4 w-4 animate-spin" />
+                                <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 animate-spin" />
                                 Uploading...
                               </>
                             ) : (
                               <>
-                                <Upload className="h-4 w-4" />
+                                <Upload className="h-4 w-4 sm:h-5 sm:w-5" />
                                 Choose File
                               </>
                             )}
@@ -679,23 +680,20 @@ export default function MappingPage() {
                           initial={{ opacity: 0, y: 10 }}
                           animate={{ opacity: 1, y: 0 }}
                           transition={{ delay: 0.5 + fieldConfigs.indexOf(field) * 0.1 }}
-                          className={`relative p-4 rounded-xl border-2 transition-all duration-300 ${
-                            isMapped
+                          className={`relative p-4 rounded-xl border-2 transition-all duration-300 ${isMapped
                               ? "border-green-200 bg-green-50/50 shadow-sm"
                               : "border-gray-200 bg-white hover:border-indigo-300 hover:shadow-sm"
-                          }`}
+                            }`}
                         >
                           <div className="flex items-start justify-between mb-3">
                             <div className="flex items-center gap-2">
                               <div
-                                className={`p-2 rounded-lg ${
-                                  isMapped ? "bg-green-100" : "bg-indigo-100"
-                                }`}
+                                className={`p-2 rounded-lg ${isMapped ? "bg-green-100" : "bg-indigo-100"
+                                  }`}
                               >
                                 <Icon
-                                  className={`h-4 w-4 ${
-                                    isMapped ? "text-green-600" : "text-indigo-600"
-                                  }`}
+                                  className={`h-4 w-4 ${isMapped ? "text-green-600" : "text-indigo-600"
+                                    }`}
                                 />
                               </div>
                               <label className="text-sm font-semibold text-gray-900">
@@ -737,11 +735,10 @@ export default function MappingPage() {
                           <select
                             value={mapping[field.key]}
                             onChange={(e) => handleMappingChange(field.key, e.target.value)}
-                            className={`w-full px-4 py-2.5 text-sm border rounded-lg transition-all duration-200 focus:ring-2 focus:ring-indigo-300 focus:border-transparent ${
-                              isMapped
+                            className={`w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border rounded-lg transition-all duration-200 focus:ring-2 focus:ring-indigo-300 focus:border-transparent min-h-[44px] ${isMapped
                                 ? "border-green-300 bg-white"
                                 : "border-gray-300 bg-white hover:border-indigo-300"
-                            }`}
+                              }`}
                             aria-label={`Map ${field.label} field`}
                           >
                             <option value="">{field.placeholder}</option>
@@ -765,7 +762,7 @@ export default function MappingPage() {
               animate={{ opacity: 1, x: 0 }}
               transition={{ delay: 0.5, duration: 0.5 }}
             >
-              <Card className="bg-white/50 backdrop-blur-xl border border-indigo-100 shadow-brand-lg hover:shadow-brand-xl transition-all duration-300 sticky top-8">
+              <Card className="bg-white/80 backdrop-blur-sm border border-indigo-100 shadow-brand-lg hover:shadow-brand-xl transition-all duration-300 lg:sticky top-8">
                 <CardHeader>
                   <div className="flex items-center justify-between">
                     <div className="flex items-center space-x-2">
@@ -808,11 +805,11 @@ export default function MappingPage() {
                         transition={{ duration: 0.3 }}
                         className="border-2 border-dashed border-gray-200 rounded-xl aspect-[8.5/11] flex items-center justify-center bg-gradient-to-br from-white to-gray-50 relative overflow-hidden shadow-lg"
                       >
-                        <div className="text-center p-6 sm:p-8 w-full">
+                        <div className="text-center p-4 sm:p-6 md:p-8 w-full">
                           <motion.div
                             animate={{ y: [0, -3, 0] }}
                             transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
-                            className="text-5xl sm:text-6xl mb-4"
+                            className="text-4xl sm:text-5xl md:text-6xl mb-3 sm:mb-4"
                           >
                             🎓
                           </motion.div>
@@ -820,7 +817,7 @@ export default function MappingPage() {
                             key="certificate-title"
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
-                            className="text-xl sm:text-2xl font-bold text-gray-900 mb-3"
+                            className="text-lg sm:text-xl md:text-2xl font-bold text-gray-900 mb-2 sm:mb-3"
                           >
                             Certificate of Completion
                           </motion.h2>
@@ -829,7 +826,7 @@ export default function MappingPage() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.1 }}
-                            className="text-base sm:text-lg font-semibold text-indigo-600 mb-2"
+                            className="text-sm sm:text-base md:text-lg font-semibold text-indigo-600 mb-2"
                           >
                             {previewData?.name || "Name"}
                           </motion.p>
@@ -838,7 +835,7 @@ export default function MappingPage() {
                             initial={{ opacity: 0, y: 10 }}
                             animate={{ opacity: 1, y: 0 }}
                             transition={{ delay: 0.2 }}
-                            className="text-sm sm:text-base text-gray-600 mb-3"
+                            className="text-xs sm:text-sm md:text-base text-gray-600 mb-2 sm:mb-3"
                           >
                             {previewData?.role || "Role/Title"}
                           </motion.p>
@@ -865,40 +862,40 @@ export default function MappingPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.6, duration: 0.5 }}
-            className="flex flex-col sm:flex-row items-center justify-between gap-4 pt-6 border-t border-gray-200"
+            className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 sm:gap-4 pt-4 sm:pt-6 border-t border-gray-200"
           >
             <BrandButton
               variant="outline"
               size="lg"
               onClick={handleBack}
-              className="w-full sm:w-auto border-gray-300 text-gray-700 hover:bg-gray-50"
+              className="w-full sm:w-auto border-gray-300 text-gray-700 hover:bg-gray-50 min-h-[44px]"
             >
-              <ArrowLeft className="h-4 w-4 mr-2" />
+              <ArrowLeft className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
               Back
             </BrandButton>
 
-            <div className="flex flex-col items-end gap-2">
+            <div className="flex flex-col items-stretch sm:items-end gap-2">
               <BrandButton
                 variant="gradient"
                 size="lg"
                 onClick={handleGenerate}
                 disabled={!csvData || !mapping.name || isGenerating || isUploading || isValidating}
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto min-h-[44px]"
                 aria-label={isGenerating ? "Generating certificates" : "Generate certificates"}
               >
                 {isGenerating ? (
                   <>
-                    <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                    <RefreshCw className="h-4 w-4 sm:h-5 sm:w-5 mr-2 animate-spin" />
                     Generating...
                   </>
                 ) : (
                   <>
                     Generate Certificates
-                    <Sparkles className="h-4 w-4 ml-2" />
+                    <Sparkles className="h-4 w-4 sm:h-5 sm:w-5 ml-2" />
                   </>
                 )}
               </BrandButton>
-              <p className="text-xs text-gray-500 text-center sm:text-right">
+              <p className="text-xs sm:text-sm text-gray-500 text-center sm:text-right">
                 This will create certificates for all records automatically.
               </p>
             </div>

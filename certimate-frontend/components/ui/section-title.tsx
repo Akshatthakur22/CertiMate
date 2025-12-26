@@ -71,7 +71,7 @@ const SectionTitle = React.forwardRef<HTMLDivElement, SectionTitleProps>(
               sizeClasses[size].subtitle,
               variant === "primary" && "text-primary",
               variant === "accent" && "text-accent",
-              variant === "default" && "text-muted-foreground"
+              variant === "default" && "text-gray-600"
             )}
           >
             {subtitle}
@@ -89,7 +89,7 @@ const SectionTitle = React.forwardRef<HTMLDivElement, SectionTitleProps>(
         {description && (
           <p
             className={cn(
-              "text-muted-foreground max-w-2xl",
+              "text-gray-600 max-w-2xl",
               sizeClasses[size].description,
               align === "center" && "mx-auto",
               align === "left" && "mr-auto",

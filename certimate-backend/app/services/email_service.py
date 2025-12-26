@@ -1,15 +1,15 @@
-"""
-Email service for sending certificates via Gmail API
-Handles OAuth token authentication, message creation, and attachment sending
-"""
 import base64
 import os
 import logging
+import time
+import uuid
+import random
 from typing import List, Dict, Tuple, Optional
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 from email.mime.base import MIMEBase
 from email import encoders
+from email.utils import make_msgid, formatdate
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
@@ -26,26 +26,11 @@ class EmailService:
     async def build_gmail_service(access_token: str):
         """
         Build Gmail service instance using OAuth access token
-        
-        Args:
-            access_token: OAuth 2.0 access token from frontend
-            
-        Returns:
-            Gmail API service instance
-            
-        Raises:
-            Exception: If token is invalid or service cannot be built
         """
         try:
-            # Create credentials from the access token
             credentials = Credentials(token=access_token)
-            
-            # Build Gmail service
-            service = build('gmail', 'v1', credentials=credentials)
-            logger.info("Gmail service built successfully")
-            
+            service = build('gmail', 'v1', credentials=credentials, cache_discovery=False)
             return service
-            
         except Exception as e:
             logger.error(f"Error building Gmail service: {e}")
             raise Exception(f"Failed to authenticate with Gmail: {str(e)}")
@@ -54,39 +39,46 @@ class EmailService:
     def create_message_with_attachment(
         to: str,
         subject: str,
-        body: str,
+        body_html: str,
+        body_text: str,
         attachment_path: str,
-        sender_email: str = None
+        sender_email: str = None,
+        reply_to: str = None
     ) -> Dict:
         """
-        Create an email message with attachment
-        
-        Args:
-            to: Recipient email address
-            subject: Email subject
-            body: Email body text
-            attachment_path: Path to attachment file
-            sender_email: Optional sender email address
-            
-        Returns:
-            Dictionary with 'raw' base64 encoded message
-            
-        Raises:
-            Exception: If attachment file not found or error creating message
+        Create an email message with attachment, HTML support, and proper headers
         """
         try:
-            # Create multipart message
-            message = MIMEMultipart()
+            # Create multipart message (mixed for attachment)
+            message = MIMEMultipart('mixed')
             
-            # Set headers
-            message['to'] = to
-            message['subject'] = subject
+            # Set standard headers
+            message['To'] = to
+            message['Subject'] = subject
+            message['Date'] = formatdate(localtime=True)
+            message['Message-ID'] = make_msgid(domain='certimate.app')
+            
             if sender_email:
-                message['from'] = sender_email
+                message['From'] = f"CertiMate <{sender_email}>"
             
-            # Add body
-            msgBody = MIMEText(body, 'plain')
-            message.attach(msgBody)
+            if reply_to:
+                message['Reply-To'] = reply_to
+                
+            # Add List-Unsubscribe header (good practice for bulk)
+            message['List-Unsubscribe'] = f"<mailto:unsubscribe@certimate.app?subject=unsubscribe>"
+            message['X-Entity-Ref-ID'] = str(uuid.uuid4())
+            
+            # Create alternative part for HTML/Text
+            msg_alternative = MIMEMultipart('alternative')
+            message.attach(msg_alternative)
+            
+            # Add text body
+            msg_text = MIMEText(body_text, 'plain')
+            msg_alternative.attach(msg_text)
+            
+            # Add HTML body
+            msg_html = MIMEText(body_html, 'html')
+            msg_alternative.attach(msg_html)
             
             # Add attachment
             if attachment_path and os.path.exists(attachment_path):
@@ -99,7 +91,7 @@ class EmailService:
                 encoders.encode_base64(part)
                 part.add_header(
                     'Content-Disposition',
-                    f'attachment; filename= {attachment_name}'
+                    f'attachment; filename="{attachment_name}"'
                 )
                 message.attach(part)
                 logger.info(f"Added attachment: {attachment_name}")
@@ -109,10 +101,6 @@ class EmailService:
             
             return {'raw': raw_message}
             
-        except FileNotFoundError:
-            error_msg = f"Attachment file not found: {attachment_path}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
         except Exception as e:
             error_msg = f"Error creating message: {str(e)}"
             logger.error(error_msg)
@@ -121,39 +109,32 @@ class EmailService:
     @staticmethod
     async def send_message(
         service,
-        message: Dict
+        message: Dict,
+        retries: int = 3
     ) -> str:
         """
-        Send an email message via Gmail API
-        
-        Args:
-            service: Gmail API service instance
-            message: Message dictionary with 'raw' field
-            
-        Returns:
-            Message ID of sent email
-            
-        Raises:
-            Exception: If sending fails
+        Send an email message via Gmail API with retry logic
         """
-        try:
-            # Define a synchronous function that calls the Gmail API
-            def _send_email():
-                return service.users().messages().send(userId='me', body=message).execute()
-            
-            # Run in thread pool to avoid blocking
-            loop = asyncio.get_event_loop()
-            result = await loop.run_in_executor(None, _send_email)
-            
-            message_id = result.get('id')
-            logger.info(f"Email sent successfully. Message ID: {message_id}")
-            
-            return message_id
-            
-        except Exception as e:
-            error_msg = f"Error sending email: {str(e)}"
-            logger.error(error_msg)
-            raise Exception(error_msg)
+        for attempt in range(retries):
+            try:
+                # Define a synchronous function that calls the Gmail API
+                def _send_email():
+                    return service.users().messages().send(userId='me', body=message).execute()
+                
+                # Run in thread pool to avoid blocking
+                loop = asyncio.get_event_loop()
+                result = await loop.run_in_executor(None, _send_email)
+                
+                message_id = result.get('id')
+                logger.info(f"Email sent successfully. Message ID: {message_id}")
+                return message_id
+                
+            except Exception as e:
+                logger.warning(f"Attempt {attempt + 1} failed: {e}")
+                if attempt == retries - 1:
+                    raise
+                # Exponential backoff
+                await asyncio.sleep(2 ** attempt + random.uniform(0, 1))
     
     @staticmethod
     async def send_certificate_email(
@@ -162,47 +143,42 @@ class EmailService:
         recipient_name: str,
         certificate_path: str,
         subject: str = "Your Certificate is Ready!",
-        body_template: str = "Hi {{name}},\n\nCongratulations! Your certificate is attached.\n\nBest regards,\nThe CertiMate Team",
-        event_name: str = None
+        body_template: str = None,
+        sender_email: str = None
     ) -> Dict[str, any]:
         """
         Send a certificate via email using Gmail API
-        
-        Args:
-            access_token: OAuth 2.0 access token
-            recipient_email: Recipient's email address
-            recipient_name: Recipient's name (for personalization)
-            certificate_path: Path to certificate file
-            subject: Email subject (can contain {{name}} and {{event}} placeholders)
-            body_template: Email body template with {{name}} and {{event}} placeholders
-            event_name: Optional event/course name for {{event}} placeholder
-            
-        Returns:
-            Dictionary with success status and message ID
-            
-        Raises:
-            Exception: If sending fails
         """
         try:
-            # Build personalized subject
-            personalized_subject = subject.replace('{{name}}', recipient_name)
-            if event_name:
-                personalized_subject = personalized_subject.replace('{{event}}', event_name)
+            # Default template if none provided
+            if not body_template:
+                body_template = (
+                    "<p>Hi {{name}},</p>"
+                    "<p>Congratulations! Your certificate is attached.</p>"
+                    "<p>Best regards,<br>The CertiMate Team</p>"
+                )
             
-            # Build personalized body
-            body = body_template.replace('{{name}}', recipient_name)
-            if event_name:
-                body = body.replace('{{event}}', event_name)
+            # Personalize body
+            body_html = body_template.replace('{{name}}', recipient_name)
+            
+            # Create plain text version from HTML (simple strip)
+            body_text = body_html.replace('<br>', '\n').replace('<p>', '').replace('</p>', '\n\n')
             
             # Build Gmail service
             service = await EmailService.build_gmail_service(access_token)
             
+            # Use 'me' as sender if not provided (Gmail will use authenticated user)
+            if not sender_email:
+                sender_email = None  # Gmail API will use authenticated user's email
+            
             # Create message
             message = EmailService.create_message_with_attachment(
                 to=recipient_email,
-                subject=personalized_subject,
-                body=body,
-                attachment_path=certificate_path
+                subject=subject,
+                body_html=body_html,
+                body_text=body_text,
+                attachment_path=certificate_path,
+                sender_email=sender_email
             )
             
             # Send message
@@ -231,22 +207,11 @@ class EmailService:
         recipients: List[Dict[str, str]],
         certificates_dir: str = "uploads/certificates",
         subject: str = "Your Certificate is Ready!",
-        body_template: str = "Hi {{name}},\n\nCongratulations! Your certificate is attached.\n\nBest regards,\nThe CertiMate Team",
+        body_template: str = None,
         event_name: str = None
     ) -> Dict[str, any]:
         """
-        Send certificates to multiple recipients
-        
-        Args:
-            access_token: OAuth 2.0 access token
-            recipients: List of dicts with 'email', 'name', and optionally 'certificate_filename'
-            certificates_dir: Directory containing certificate files
-            subject: Email subject (can contain {{name}} and {{event}} placeholders)
-            body_template: Email body template with {{name}} and {{event}} placeholders
-            event_name: Optional event/course name for {{event}} placeholder
-            
-        Returns:
-            Dictionary with success/failure counts and details
+        Send certificates to multiple recipients with batching delay
         """
         results = {
             'total': len(recipients),
@@ -255,19 +220,25 @@ class EmailService:
             'details': []
         }
         
-        for recipient in recipients:
+        # Build service once to reuse (optimization)
+        try:
+            service = await EmailService.build_gmail_service(access_token)
+            
+            # Use authenticated user as sender
+            sender_email = None  # Gmail API will use authenticated user's email
+            
+        except Exception as e:
+            logger.error(f"Failed to initialize batch sending: {e}")
+            return results
+        
+        for i, recipient in enumerate(recipients):
             email = recipient.get('email')
             name = recipient.get('name', email.split('@')[0])
             
             # Find certificate file
             certificate_filename = recipient.get('certificate_filename')
             if not certificate_filename:
-                # Try to infer from name
-                # Look for files starting with "certificate_" and containing the name
-                certificate_filename = EmailService._find_certificate_file(
-                    certificates_dir,
-                    name
-                )
+                certificate_filename = EmailService._find_certificate_file(certificates_dir, name)
             
             if not certificate_filename:
                 results['failed'] += 1
@@ -281,64 +252,65 @@ class EmailService:
             
             certificate_path = os.path.join(certificates_dir, certificate_filename)
             
+            # Personalize
+            current_subject = subject
+            current_body_template = body_template
+            
+            if event_name:
+                current_subject = current_subject.replace('{{event}}', event_name)
+                current_body_template = current_body_template.replace('{{event}}', event_name)
+            
             # Send email
-            result = await EmailService.send_certificate_email(
-                access_token=access_token,
-                recipient_email=email,
-                recipient_name=name,
-                certificate_path=certificate_path,
-                subject=subject,
-                body_template=body_template,
-                event_name=event_name
-            )
-            
-            if result.get('success'):
+            try:
+                # Personalize body
+                body_html = current_body_template.replace('{{name}}', name)
+                body_text = body_html.replace('<br>', '\n').replace('<p>', '').replace('</p>', '\n\n')
+                
+                message = EmailService.create_message_with_attachment(
+                    to=email,
+                    subject=current_subject,
+                    body_html=body_html,
+                    body_text=body_text,
+                    attachment_path=certificate_path,
+                    sender_email=sender_email
+                )
+                
+                message_id = await EmailService.send_message(service, message)
+                
                 results['successful'] += 1
-            else:
+                results['details'].append({
+                    'success': True,
+                    'recipient_email': email,
+                    'message_id': message_id
+                })
+                
+            except Exception as e:
                 results['failed'] += 1
+                results['details'].append({
+                    'success': False,
+                    'recipient_email': email,
+                    'error': str(e)
+                })
             
-            results['details'].append(result)
+            # Batching delay to avoid rate limits
+            if i < len(recipients) - 1:
+                await asyncio.sleep(0.5)  # 500ms delay
         
         return results
     
     @staticmethod
     def _find_certificate_file(certificates_dir: str, name: str) -> Optional[str]:
-        """
-        Find a certificate file for a given name
-        
-        Args:
-            certificates_dir: Directory to search in
-            name: Recipient name to search for
-            
-        Returns:
-            Certificate filename or None if not found
-        """
+        """Find a certificate file for a given name"""
         try:
-            # Normalize name for file matching
             search_name = name.replace(' ', '_').lower()
-            
-            # List files in directory
             if not os.path.exists(certificates_dir):
-                logger.warning(f"Certificates directory does not exist: {certificates_dir}")
                 return None
             
             files = os.listdir(certificates_dir)
-            
-            # Search for matching certificate file
             for filename in files:
-                # Skip ZIP files
-                if filename.endswith('.zip'):
-                    continue
-                
-                # Check if name is in filename
+                if filename.endswith('.zip'): continue
                 if search_name in filename.lower():
-                    logger.info(f"Found certificate file: {filename}")
                     return filename
-            
-            logger.warning(f"No certificate file found for name: {name}")
             return None
-            
-        except Exception as e:
-            logger.error(f"Error finding certificate file: {e}")
+        except Exception:
             return None
-

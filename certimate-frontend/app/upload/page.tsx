@@ -142,19 +142,19 @@ export default function UploadPage() {
   return (
     <PageLayout>
       {/* Background gradient aligned with landing */}
-      <div className="min-h-screen py-12 sm:py-20 px-4 bg-gradient-to-b from-white via-indigo-50/30 to-white">
+      <div className="min-h-screen py-8 sm:py-12 md:py-16 lg:py-20 px-4 sm:px-6 bg-gradient-to-br from-white via-indigo-50/30 to-white">
         <div className="container max-w-3xl mx-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-8 sm:mb-12"
+            className="text-center mb-6 sm:mb-8 md:mb-12"
           >
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-3 sm:mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-2 sm:mb-3 md:mb-4">
               Upload Your Template
             </h1>
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
+            <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto px-2 sm:px-4">
               Start by uploading your certificate template. We support PNG, JPG, and PDF formats.
             </p>
           </motion.div>
@@ -166,33 +166,33 @@ export default function UploadPage() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="mb-8"
           >
-            <div className="flex items-center justify-center space-x-2 sm:space-x-4">
+            <div className="flex items-center justify-center space-x-2 sm:space-x-3 md:space-x-4 overflow-x-auto pb-2">
               {[
                 { num: 1, label: 'Upload', active: true },
                 { num: 2, label: 'Map Data', active: false },
                 { num: 3, label: 'Generate', active: false },
               ].map((step) => (
-                <div key={step.num} className="flex items-center">
+                <div key={step.num} className="flex items-center flex-shrink-0">
                   <div
                     className={`flex flex-col items-center ${
-                      step.active ? 'text-primary' : 'text-muted-foreground'
+                      step.active ? 'text-indigo-600' : 'text-gray-400'
                     }`}
                   >
                     <div
-                      className={`h-8 w-8 sm:h-10 sm:w-10 rounded-full flex items-center justify-center font-bold border-2 transition-all ${
+                      className={`h-10 w-10 sm:h-11 sm:w-11 md:h-12 md:w-12 rounded-full flex items-center justify-center font-bold border-2 transition-all ${
                         step.active
-                          ? 'bg-primary text-primary-foreground border-primary shadow-brand'
-                          : 'bg-card text-muted-foreground border-border'
+                          ? 'bg-indigo-600 text-white border-indigo-600 shadow-brand'
+                          : 'bg-white text-gray-400 border-gray-300'
                       }`}
                     >
-                      {step.active ? <Check className="h-4 w-4 sm:h-5 sm:w-5" /> : <span className="text-xs sm:text-sm">{step.num}</span>}
+                      {step.active ? <Check className="h-5 w-5 sm:h-6 sm:w-6" /> : <span className="text-sm sm:text-base">{step.num}</span>}
                     </div>
-                    <span className="text-xs sm:text-sm mt-2 font-medium">{step.label}</span>
+                    <span className="text-xs sm:text-sm mt-2 font-medium whitespace-nowrap">{step.label}</span>
                   </div>
                   {step.num < 3 && (
                     <div
-                      className={`h-0.5 w-6 sm:w-16 mx-2 sm:mx-4 transition-colors ${
-                        step.active ? 'bg-primary' : 'bg-border'
+                      className={`h-0.5 w-4 sm:w-8 md:w-12 lg:w-16 mx-1 sm:mx-2 md:mx-3 lg:mx-4 transition-colors ${
+                        step.active ? 'bg-indigo-600' : 'bg-gray-300'
                       }`}
                     />
                   )}
@@ -209,16 +209,16 @@ export default function UploadPage() {
           >
             {/* Outer wrapper gives a subtle gradient border */}
             <div className={`rounded-2xl p-[1px] bg-gradient-to-r from-indigo-200/60 via-indigo-500/20 to-indigo-200/60 transition-all ${isDragging ? 'from-indigo-300 via-indigo-500/30 to-indigo-300' : ''}`}>
-            <Card className={`rounded-[15px] border-2 border-dashed transition-all duration-300 ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}`}>
+            <Card className={`rounded-xl border-2 border-dashed transition-all duration-300 ${isDragging ? 'border-indigo-500 bg-indigo-50/50' : 'border-gray-300'}`}>
               {!file ? (
-                <CardContent className="p-6 sm:p-12">
+                <CardContent className="p-6 sm:p-8 md:p-12">
                   <div
                     onDragOver={handleDragOver}
                     onDragLeave={handleDragLeave}
                     onDrop={handleDrop}
                     onClick={() => fileInputRef.current?.click()}
                     className={`text-center cursor-pointer transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 rounded-xl ${
-                      isDragging ? 'bg-primary/5' : ''
+                      isDragging ? 'bg-indigo-50/50' : ''
                     }`}
                     role="button"
                     tabIndex={0}
@@ -231,14 +231,14 @@ export default function UploadPage() {
                     aria-label="Upload template file"
                   >
                     <UploadCloud
-                      className={`h-12 w-12 sm:h-16 sm:w-16 mx-auto mb-4 transition-colors ${
-                        isDragging ? 'text-primary' : 'text-muted-foreground'
+                      className={`h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 mx-auto mb-4 transition-colors ${
+                        isDragging ? 'text-indigo-600' : 'text-gray-400'
                       }`}
                     />
-                    <h3 className="text-base sm:text-xl font-semibold text-foreground mb-2">
+                    <h3 className="text-base sm:text-lg md:text-xl font-semibold text-gray-900 mb-2">
                       {isDragging ? 'Drop your file here' : 'Drag and drop your template'}
                     </h3>
-                    <p className="text-sm sm:text-base text-muted-foreground mb-6">
+                    <p className="text-sm sm:text-base text-gray-600 mb-6">
                       or click to browse files
                     </p>
                     <input
@@ -254,11 +254,11 @@ export default function UploadPage() {
                       variant="outline"
                       size="default"
                       onClick={(e) => { e.stopPropagation(); fileInputRef.current?.click(); }}
-                      className="cursor-pointer"
+                      className="cursor-pointer min-h-[44px]"
                     >
                       Select File
                     </BrandButton>
-                    <p className="text-xs sm:text-sm text-muted-foreground mt-4">
+                    <p className="text-xs sm:text-sm text-gray-500 mt-4">
                       Supported: PNG, JPG, PDF • Max 10MB
                     </p>
                   </div>
@@ -266,41 +266,41 @@ export default function UploadPage() {
               ) : (
                 <CardContent className="p-4 sm:p-6">
                   {/* Selected file summary + preview */}
-                  <div className="flex items-center justify-between bg-muted/50 rounded-lg p-3 sm:p-4">
-                    <div className="flex items-center gap-4 flex-1 min-w-0">
+                  <div className="flex items-center justify-between bg-gray-50 rounded-lg p-3 sm:p-4 gap-3">
+                    <div className="flex items-center gap-3 sm:gap-4 flex-1 min-w-0">
                       {previewUrl ? (
-                        <img src={previewUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 rounded-md object-cover border" />
+                        <img src={previewUrl} alt="Preview" className="h-12 w-12 sm:h-14 sm:w-14 md:h-16 md:w-16 rounded-md object-cover border border-gray-200 flex-shrink-0" />
                       ) : (
                         <div className="flex items-center gap-2 flex-shrink-0">
-                          <span className="text-2xl sm:text-4xl">{getFileIcon(file.type)}</span>
+                          <span className="text-2xl sm:text-3xl md:text-4xl">{getFileIcon(file.type)}</span>
                           {file.type.includes('pdf') && (
-                            <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">PDF</span>
+                            <span className="text-[10px] sm:text-xs px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700 border border-indigo-200">PDF</span>
                           )}
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <p className="font-medium text-foreground text-sm sm:text-base truncate">{file.name}</p>
-                        <p className="text-xs sm:text-sm text-muted-foreground">
+                        <p className="font-medium text-gray-900 text-sm sm:text-base truncate">{file.name}</p>
+                        <p className="text-xs sm:text-sm text-gray-600">
                           {formatFileSize(file.size)} • {file.type}
                         </p>
                       </div>
                     </div>
                     <button
                       onClick={handleRemove}
-                      className="p-2 hover:bg-muted rounded-lg transition-colors flex-shrink-0 ml-2"
+                      className="p-2 sm:p-2.5 hover:bg-gray-200 rounded-lg transition-colors flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
                       aria-label="Remove file"
                     >
-                      <X className="h-4 w-4 sm:h-5 sm:w-5 text-muted-foreground hover:text-foreground" />
+                      <X className="h-5 w-5 sm:h-6 sm:w-6 text-gray-600 hover:text-gray-900" />
                     </button>
                   </div>
 
                   {/* Indeterminate progress / skeleton while uploading */}
                   {isUploading && (
                     <div className="mt-4">
-                      <div className="h-2 w-full bg-muted rounded-full overflow-hidden">
+                      <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-indigo-400 via-indigo-600 to-indigo-400 animate-[pulse_1.2s_ease-in-out_infinite]" />
                       </div>
-                      <p className="text-xs text-muted-foreground mt-2">Uploading… please wait</p>
+                      <p className="text-xs text-gray-600 mt-2">Uploading… please wait</p>
                     </div>
                   )}
                 </CardContent>
@@ -326,7 +326,7 @@ export default function UploadPage() {
                 size="lg"
                 onClick={handleNext}
                 disabled={isUploading}
-                className="w-full sm:w-auto"
+                className="w-full sm:w-auto min-h-[44px]"
                 aria-label={isUploading ? "Uploading template" : "Continue to mapping"}
               >
                 {isUploading ? "Uploading..." : "Next: Map Data"}

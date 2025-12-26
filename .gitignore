@@ -6,6 +6,7 @@ node_modules/
 .next/
 out/
 .vscode/
+.idea/
 .vercel/
 *.log
 npm-debug.log*
@@ -13,29 +14,40 @@ yarn-debug.log*
 yarn-error.log*
 .pnp.*
 
-# Env files
-.env
-.env.*
-*.local
-
 # Python
 __pycache__/
 *.py[cod]
 *.pyo
 *.pyd
 *.so
+*$py.class
+.Python
 .mypy_cache/
 .pytest_cache/
 .venv/
 venv/
+ENV/
+env/
 
-# Project generated assets
-certimate-backend/uploads/
-certimate-backend/logs/
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
 
-# General uploads/logs (if any at root)
-uploads/
-logs/
+# Environment files
+.env
+.env.*
+*.local
+
+# Project generated assets (runtime artifacts)
+certimate-backend/uploads/certificates/
+certimate-backend/uploads/csv/
+certimate-backend/uploads/preview/
+certimate-backend/uploads/metadata.json
+certimate-backend/logs/*.log
+certimate-backend/logs/*.csv
 
 # Coverage/Reports
 coverage/
@@ -47,31 +59,9 @@ htmlcov/
 # OS/Editor
 *.swp
 *.swo
-.idea/
-
-# Frontend folder (to be created)
-frontend/
-
-# Python
-__pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
-
-# Virtual environments
-venv/
-ENV/
-env/
-.venv
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
 *~
-
-# OS
-.DS_Store
 Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts

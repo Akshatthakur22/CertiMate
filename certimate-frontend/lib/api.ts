@@ -3,7 +3,8 @@ import axios from "axios";
 // Create axios instance with default config
 export const api = axios.create({
   baseURL: process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000",
-  timeout: 30000,
+  timeout: 120000, // ⏱ increased from 30s → 2min to prevent "timeout exceeded" errors
+
 });
 
 // Request interceptor
@@ -304,11 +305,13 @@ export interface SendEmailRequest {
 
 export interface SendEmailResponse {
   message: string;
+  job_id?: string;
+  status?: string;
   total: number;
-  successful: number;
-  failed: number;
-  success_rate: number;
-  details: Array<{
+  successful?: number;
+  failed?: number;
+  success_rate?: number;
+  details?: Array<{
     success: boolean;
     recipient_email: string;
     recipient_name: string;

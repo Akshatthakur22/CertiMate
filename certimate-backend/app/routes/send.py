@@ -115,7 +115,8 @@ async def send_certificates_email(request: EmailSendRequest):
                 detail=f"Certificates directory not found: {certificates_dir}"
             )
         
-        logger.info(f"Sending certificates to {len(request.recipients)} recipients")
+        
+        logger.info(f"Queueing email send for {len(request.recipients)} recipients")
         
         # Convert Pydantic models to dicts for service
         recipients_list = [
@@ -127,38 +128,44 @@ async def send_certificates_email(request: EmailSendRequest):
             for r in request.recipients
         ]
         
-        # Send certificates with custom subject and template
-        results = await EmailService.send_certificates_batch(
-            access_token=request.access_token,
-            recipients=recipients_list,
-            certificates_dir=certificates_dir,
-            subject=request.subject or "Your Certificate is Ready!",
-            body_template=request.body_template or (
-                "Hi {{name}},\n\n"
-                "Congratulations! Your certificate is attached.\n\n"
-                "Best regards,\nThe CertiMate Team"
+        # Create job for tracking
+        import uuid
+        from app.services.job_service import JobService
+        job_id = str(uuid.uuid4())
+        JobService.create_job(job_id, len(recipients_list), {
+            "type": "email_batch",
+            "recipients_count": len(recipients_list)
+        })
+        
+        # Enqueue email sending task
+        from app.core.queue import email_q
+        from app.tasks.email_tasks import send_email_batch_task
+        
+        email_q.enqueue(
+            send_email_batch_task,
+            job_id,
+            request.access_token,
+            recipients_list,
+            certificates_dir,
+            request.subject or "Your Certificate is Ready!",
+            request.body_template or (
+                "Hi {{name}},\\n\\n"
+                "Congratulations! Your certificate is attached.\\n\\n"
+                "Best regards,\\nThe CertiMate Team"
             ),
-            event_name=request.event_name  # For {{event}} placeholder
+            request.event_name
         )
         
-        # Calculate success rate
-        success_rate = (results['successful'] / results['total']) * 100 if results['total'] > 0 else 0
-        
         response = {
-            "message": f"Sent certificates to {results['successful']}/{results['total']} recipients",
-            "total": results['total'],
-            "successful": results['successful'],
-            "failed": results['failed'],
-            "success_rate": round(success_rate, 2),
-            "details": results['details']
+            "message": f"Email sending started for {len(recipients_list)} recipients",
+            "job_id": job_id,
+            "status": "queued",
+            "total": len(recipients_list)
         }
-        
-        # Return 207 Multi-Status if some failed, 200 if all succeeded
-        status_code = 207 if results['failed'] > 0 else 200
         
         return JSONResponse(
             content=response,
-            status_code=status_code
+            status_code=202
         )
         
     except HTTPException:

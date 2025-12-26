@@ -1,0 +1,14 @@
+{
+  "job_id": "91af440b-a3c3-49bc-895e-994e4326ddf0",
+  "status": "completed",
+  "created_at": "2025-12-03T17:08:46.011877",
+  "updated_at": "2025-12-03T17:08:57.550070",
+  "total_items": 5,
+  "processed_items": 5,
+  "successful_items": 5,
+  "failed_items": 0,
+  "metadata": {
+    "type": "email_batch",
+    "recipients_count": 5
+  }
+}
