@@ -29,6 +29,7 @@ class EmailSendRequest(BaseModel):
     subject: Optional[str] = "Your Certificate is Ready!"
     body_template: Optional[str] = None
     certificates_dir: Optional[str] = "uploads/certificates"
+    event_name: Optional[str] = None  # For {{event}} placeholder
 
 
 @router.post("/email")
@@ -114,7 +115,8 @@ async def send_certificates_email(request: EmailSendRequest):
                 detail=f"Certificates directory not found: {certificates_dir}"
             )
         
-        logger.info(f"Sending certificates to {len(request.recipients)} recipients")
+        
+        logger.info(f"Queueing email send for {len(request.recipients)} recipients")
         
         # Convert Pydantic models to dicts for service
         recipients_list = [
@@ -126,31 +128,44 @@ async def send_certificates_email(request: EmailSendRequest):
             for r in request.recipients
         ]
         
-        # Send certificates
-        results = await EmailService.send_certificates_batch(
-            access_token=request.access_token,
-            recipients=recipients_list,
-            certificates_dir=certificates_dir
+        # Create job for tracking
+        import uuid
+        from app.services.job_service import JobService
+        job_id = str(uuid.uuid4())
+        JobService.create_job(job_id, len(recipients_list), {
+            "type": "email_batch",
+            "recipients_count": len(recipients_list)
+        })
+        
+        # Enqueue email sending task
+        from app.core.queue import email_q
+        from app.tasks.email_tasks import send_email_batch_task
+        
+        email_q.enqueue(
+            send_email_batch_task,
+            job_id,
+            request.access_token,
+            recipients_list,
+            certificates_dir,
+            request.subject or "Your Certificate is Ready!",
+            request.body_template or (
+                "Hi {{name}},\\n\\n"
+                "Congratulations! Your certificate is attached.\\n\\n"
+                "Best regards,\\nThe CertiMate Team"
+            ),
+            request.event_name
         )
         
-        # Calculate success rate
-        success_rate = (results['successful'] / results['total']) * 100 if results['total'] > 0 else 0
-        
         response = {
-            "message": f"Sent certificates to {results['successful']}/{results['total']} recipients",
-            "total": results['total'],
-            "successful": results['successful'],
-            "failed": results['failed'],
-            "success_rate": round(success_rate, 2),
-            "details": results['details']
+            "message": f"Email sending started for {len(recipients_list)} recipients",
+            "job_id": job_id,
+            "status": "queued",
+            "total": len(recipients_list)
         }
-        
-        # Return 207 Multi-Status if some failed, 200 if all succeeded
-        status_code = 207 if results['failed'] > 0 else 200
         
         return JSONResponse(
             content=response,
-            status_code=status_code
+            status_code=202
         )
         
     except HTTPException:
@@ -160,6 +175,63 @@ async def send_certificates_email(request: EmailSendRequest):
         raise HTTPException(
             status_code=500,
             detail=f"Error sending certificates: {str(e)}"
+        )
+
+
+class EmailPreviewRequest(BaseModel):
+    """Request schema for email preview"""
+    subject: str
+    body_template: str
+    recipient_name: str = "John Doe"
+    event_name: Optional[str] = None
+
+
+@router.post("/email/preview")
+async def preview_email(request: EmailPreviewRequest):
+    """
+    Preview how an email will look with personalized content
+    
+    Args:
+        request: EmailPreviewRequest with subject, body_template, and sample data
+        
+    Returns:
+        Dictionary with preview subject and body
+    """
+    try:
+        # Build personalized subject
+        preview_subject = request.subject.replace('{{name}}', request.recipient_name)
+        if request.event_name:
+            preview_subject = preview_subject.replace('{{event}}', request.event_name)
+        else:
+            preview_subject = preview_subject.replace('{{event}}', 'Hackathon 2025')  # Default preview
+        
+        # Build personalized body
+        preview_body = request.body_template.replace('{{name}}', request.recipient_name)
+        if request.event_name:
+            preview_body = preview_body.replace('{{event}}', request.event_name)
+        else:
+            preview_body = preview_body.replace('{{event}}', 'Hackathon 2025')  # Default preview
+        
+        logger.info("Email preview generated successfully")
+        
+        return {
+            "success": True,
+            "preview": {
+                "subject": preview_subject,
+                "body": preview_body,
+                "recipient_name": request.recipient_name,
+                "event_name": request.event_name or "Hackathon 2025"
+            }
+        }
+        
+    except Exception as e:
+        logger.error(f"Error generating email preview: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail={
+                "error": "Preview generation error",
+                "details": str(e)
+            }
         )
 
 

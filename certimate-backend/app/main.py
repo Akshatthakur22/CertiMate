@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routes import upload, generate, health, send
+from app.routes import upload, generate, health, send, mapping
 from app.config import settings
 from app.utils.logger import setup_logging
 import logging
@@ -36,6 +36,7 @@ def create_app() -> FastAPI:
     app.include_router(upload.router, prefix="/api")
     app.include_router(generate.router, prefix="/api")
     app.include_router(send.router, prefix="/api")
+    app.include_router(mapping.router, prefix="/api")
     app.include_router(health.router)
 
     @app.get("/")

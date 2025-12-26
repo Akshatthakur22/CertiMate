@@ -1,0 +1,15 @@
+{
+  "job_id": "cd79cf69-0c25-4481-9ead-dec03a6b6e53",
+  "status": "completed",
+  "created_at": "2025-12-04T15:49:11.678015",
+  "updated_at": "2025-12-04T15:49:14.866904",
+  "total_items": 6,
+  "processed_items": 6,
+  "successful_items": 6,
+  "failed_items": 0,
+  "metadata": {
+    "template": "certificate_template.png",
+    "csv": "students.csv"
+  },
+  "download_url": "/api/generate/download/cd79cf69-0c25-4481-9ead-dec03a6b6e53.zip"
+}

@@ -39,14 +39,7 @@ class PDFService:
     @staticmethod
     def pdf_to_images(pdf_path: str, dpi: int = 300) -> List[Image.Image]:
         """
-        Convert PDF pages to images
-        
-        Args:
-            pdf_path: Path to PDF file
-            dpi: Resolution for image conversion (default: 300)
-            
-        Returns:
-            List of PIL Image objects
+        Convert PDF pages to images with fallback DPI
         """
         try:
             logger.info(f"Converting PDF to images with DPI: {dpi}")
@@ -54,20 +47,22 @@ class PDFService:
             logger.info(f"Converted {len(images)} pages to images")
             return images
         except Exception as e:
-            logger.error(f"Error converting PDF to images: {e}")
+            logger.warning(f"Error converting PDF to images at {dpi} DPI: {e}")
+            
+            # Fallback to lower DPI if high DPI fails
+            if dpi > 150:
+                logger.info("Retrying with 150 DPI...")
+                try:
+                    return convert_from_path(pdf_path, dpi=150)
+                except Exception as e2:
+                    logger.error(f"Fallback conversion failed: {e2}")
+                    raise
             raise
     
     @staticmethod
     def detect_background_color(image: Image.Image, bbox: Dict) -> Tuple[int, int, int]:
         """
         Detect background color around the placeholder area
-        
-        Args:
-            image: PIL Image object
-            bbox: Dictionary with 'left', 'top', 'width', 'height' keys
-            
-        Returns:
-            RGB tuple representing the background color
         """
         try:
             # Convert to RGB if necessary
@@ -99,7 +94,6 @@ class PDFService:
                 # Get the most common color (background)
                 color_counts = Counter(pixels)
                 bg_color = color_counts.most_common(1)[0][0]
-                logger.info(f"Detected background color: {bg_color}")
                 return bg_color
             
             # Fallback to cream-like color
@@ -120,22 +114,6 @@ class PDFService:
     ) -> Image.Image:
         """
         Render name on an image with CLEAN placeholder replacement
-        
-        This function:
-        1. Detects the placeholder bbox location
-        2. Erases the placeholder text by filling with background color
-        3. Renders the new text cleanly at the same position
-        
-        Args:
-            image: PIL Image object (the certificate template)
-            name: Name to render on the image
-            bbox: Dictionary with 'left', 'top', 'width', 'height' keys
-            font_size: Size of the font to use (default: 40)
-            font_color: RGB tuple for text color (default: black)
-            center: If True, center the text in the bbox (default: False)
-            
-        Returns:
-            PIL Image with name rendered on it
         """
         try:
             # Create a copy of the image to avoid modifying the original
@@ -161,12 +139,10 @@ class PDFService:
                 for font_path in font_paths:
                     if os.path.exists(font_path):
                         font = ImageFont.truetype(font_path, font_size)
-                        logger.info(f"Loaded font from: {font_path}")
                         break
                 
                 if font is None:
                     font = ImageFont.load_default()
-                    logger.warning("Using default font")
                     
             except Exception as e:
                 logger.warning(f"Error loading font: {e}, using default")
@@ -182,7 +158,6 @@ class PDFService:
                 
                 # STEP 1: Detect background color around the placeholder
                 bg_color = PDFService.detect_background_color(result_image, bbox)
-                logger.info(f"Detected background color: {bg_color}")
                 
                 # STEP 2: Erase the placeholder by filling the bbox with background color
                 # Expand slightly to ensure complete erasure
@@ -197,7 +172,6 @@ class PDFService:
                     fill=bg_color,
                     outline=None
                 )
-                logger.info(f"Erased placeholder area: ({erase_left}, {erase_top}) to ({erase_right}, {erase_bottom})")
                 
                 # STEP 3: Calculate position for new text (centered in bbox)
                 bbox_text = draw.textbbox((0, 0), name, font=font)
@@ -219,7 +193,6 @@ class PDFService:
                 y = (img_height - text_height) // 2
             
             # STEP 4: Render the new text cleanly
-            logger.info(f"Rendering name '{name}' at position ({x}, {y})")
             draw.text((x, y), name, font=font, fill=font_color)
             
             return result_image

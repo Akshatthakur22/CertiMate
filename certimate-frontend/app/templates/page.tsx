@@ -149,14 +149,14 @@ export default function TemplatesPage() {
 
   return (
     <PageLayout>
-      <div className="min-h-screen py-12 sm:py-20 px-4 bg-gradient-to-br from-background via-primary/5">
+      <div className="min-h-screen py-8 sm:py-12 md:py-16 lg:py-20 px-4 sm:px-6 bg-gradient-to-br from-white via-indigo-50/30 to-white">
         <div className="container max-w-7xl mx-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-12"
+            className="text-center mb-8 sm:mb-10 md:mb-12"
           >
             <SectionTitle
               subtitle="Browse"
@@ -171,20 +171,20 @@ export default function TemplatesPage() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2, duration: 0.5 }}
-            className="mb-12"
+            className="mb-8 sm:mb-10 md:mb-12"
           >
-            <Card className="border-2">
+            <Card className="border-2 border-gray-200">
               <CardHeader>
                 <div className="flex items-center space-x-2 mb-4">
-                  <Filter className="h-5 w-5 text-primary" />
-                  <CardTitle>Filter Templates</CardTitle>
+                  <Filter className="h-5 w-5 text-indigo-600" />
+                  <CardTitle className="text-base sm:text-lg text-gray-900">Filter Templates</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="space-y-6">
+                <div className="space-y-4 sm:space-y-6">
                   {/* Category Filter */}
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-foreground mb-3">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3">
                       Category
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -194,14 +194,14 @@ export default function TemplatesPage() {
                           <button
                             key={cat.id}
                             onClick={() => setSelectedCategory(cat.id)}
-                            className={`flex items-center space-x-2 px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                            className={`flex items-center space-x-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all min-h-[44px] ${
                               selectedCategory === cat.id
-                                ? "bg-primary text-primary-foreground shadow-brand"
-                                : "bg-card text-foreground hover:bg-muted border border-border"
+                                ? "bg-indigo-600 text-white shadow-brand"
+                                : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
                             }`}
                             aria-label={`Filter by ${cat.label}`}
                           >
-                            <Icon className="h-3 w-3 sm:h-4 sm:w-4" />
+                            <Icon className="h-4 w-4 sm:h-5 sm:w-5" />
                             <span>{cat.label}</span>
                           </button>
                         );
@@ -211,7 +211,7 @@ export default function TemplatesPage() {
 
                   {/* Style Filter */}
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-foreground mb-3">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3">
                       Style
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -219,10 +219,10 @@ export default function TemplatesPage() {
                         <button
                           key={style}
                           onClick={() => setSelectedStyle(style)}
-                          className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all min-h-[44px] ${
                             selectedStyle === style
-                              ? "bg-primary text-primary-foreground shadow-brand"
-                              : "bg-card text-foreground hover:bg-muted border border-border"
+                              ? "bg-indigo-600 text-white shadow-brand"
+                              : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
                           }`}
                           aria-label={`Filter by ${style} style`}
                         >
@@ -234,7 +234,7 @@ export default function TemplatesPage() {
 
                   {/* Color Filter */}
                   <div>
-                    <label className="block text-xs sm:text-sm font-semibold text-foreground mb-3">
+                    <label className="block text-xs sm:text-sm font-semibold text-gray-900 mb-2 sm:mb-3">
                       Color
                     </label>
                     <div className="flex flex-wrap gap-2">
@@ -242,10 +242,10 @@ export default function TemplatesPage() {
                         <button
                           key={color}
                           onClick={() => setSelectedColor(color)}
-                          className={`px-3 sm:px-4 py-2 rounded-lg text-xs sm:text-sm font-medium transition-all ${
+                          className={`px-3 sm:px-4 py-2 sm:py-2.5 rounded-lg text-xs sm:text-sm font-medium transition-all min-h-[44px] ${
                             selectedColor === color
-                              ? "bg-primary text-primary-foreground shadow-brand"
-                              : "bg-card text-foreground hover:bg-muted border border-border"
+                              ? "bg-indigo-600 text-white shadow-brand"
+                              : "bg-white text-gray-700 hover:bg-gray-50 border border-gray-300"
                           }`}
                           aria-label={`Filter by ${color} color`}
                         >
@@ -270,7 +270,7 @@ export default function TemplatesPage() {
               className="mb-6"
             >
               <div className="flex items-center justify-between mb-4">
-                <p className="text-xs sm:text-sm text-muted-foreground">
+                <p className="text-xs sm:text-sm text-gray-600">
                   {filteredTemplates.length} template{filteredTemplates.length !== 1 ? "s" : ""} found
                 </p>
               </div>
@@ -282,7 +282,7 @@ export default function TemplatesPage() {
               animate={{ opacity: 1, y: 0 }}
               exit={{ opacity: 0, y: -20 }}
               transition={{ duration: 0.3 }}
-              className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"
+              className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6"
             >
               {filteredTemplates.map((template, index) => (
                 <motion.div
@@ -294,26 +294,26 @@ export default function TemplatesPage() {
                   onMouseLeave={() => setHoveredTemplate(null)}
                   className="relative group"
                 >
-                  <Card className="h-full hover:shadow-brand-lg transition-all duration-300 cursor-pointer overflow-hidden">
+                  <Card className="h-full hover:shadow-brand-lg transition-all duration-300 cursor-pointer overflow-hidden border-gray-200">
                     {/* Template Preview */}
-                    <div className="relative aspect-[8.5/11] bg-gradient-to-br from-primary/10 via-white to-primary/5 border-b-2 border-primary/20 flex items-center justify-center p-8 overflow-hidden">
+                    <div className="relative aspect-[8.5/11] bg-gradient-to-br from-indigo-50 via-white to-indigo-50/50 border-b-2 border-indigo-100 flex items-center justify-center p-6 sm:p-8 overflow-hidden">
                       <AnimatePresence>
                         {hoveredTemplate === template.id ? (
                           <motion.div
                             initial={{ opacity: 0 }}
                             animate={{ opacity: 1 }}
                             exit={{ opacity: 0 }}
-                            className="absolute inset-0 bg-gradient-to-br from-primary/20 to-transparent"
+                            className="absolute inset-0 bg-gradient-to-br from-indigo-100/50 to-transparent"
                           />
                         ) : null}
                       </AnimatePresence>
                       
                       <div className="relative z-10 text-center">
-                        <div className="text-4xl sm:text-6xl mb-3 sm:mb-4">🎓</div>
-                        <div className="text-lg sm:text-xl font-bold text-foreground mb-2">
+                        <div className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl mb-2 sm:mb-3 md:mb-4">🎓</div>
+                        <div className="text-base sm:text-lg md:text-xl font-bold text-gray-900 mb-2">
                           {template.name}
                         </div>
-                        <div className="text-xs sm:text-sm text-muted-foreground">
+                        <div className="text-xs sm:text-sm text-gray-600">
                           Sample Certificate
                         </div>
                       </div>
@@ -325,22 +325,23 @@ export default function TemplatesPage() {
                             initial={{ opacity: 0, y: 20 }}
                             animate={{ opacity: 1, y: 0 }}
                             exit={{ opacity: 0, y: 20 }}
-                            className="absolute inset-0 bg-black/50 flex items-center justify-center z-20"
+                            className="absolute inset-0 bg-black/60 flex items-center justify-center z-20"
                           >
-                            <div className="flex gap-3">
+                            <div className="flex flex-col sm:flex-row gap-2 sm:gap-3 px-4">
                               <BrandButton
                                 variant="gradient"
-                                size="sm"
+                                size="default"
                                 onClick={() => handleUseTemplate(template)}
+                                className="min-h-[44px]"
                               >
                                 Use Template
                               </BrandButton>
                               <BrandButton
                                 variant="outline"
-                                size="sm"
-                                className="text-white border-white hover:bg-white hover:text-primary"
+                                size="default"
+                                className="text-white border-white hover:bg-white hover:text-indigo-600 min-h-[44px]"
                               >
-                                <Eye className="h-4 w-4" />
+                                <Eye className="h-4 w-4 sm:h-5 sm:w-5" />
                               </BrandButton>
                             </div>
                           </motion.div>
@@ -348,23 +349,23 @@ export default function TemplatesPage() {
                       </AnimatePresence>
                     </div>
 
-                    <CardHeader>
-                      <CardTitle className="text-lg">{template.name}</CardTitle>
-                      <p className="text-sm text-gray-600">{template.description}</p>
+                    <CardHeader className="p-4 sm:p-6">
+                      <CardTitle className="text-base sm:text-lg text-gray-900">{template.name}</CardTitle>
+                      <p className="text-xs sm:text-sm text-gray-600 mt-1">{template.description}</p>
                     </CardHeader>
 
-                    <CardContent>
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2 text-xs text-gray-500">
-                          <span className="px-2 py-1 rounded bg-primary/10 text-primary capitalize">
+                    <CardContent className="p-4 sm:p-6 pt-0">
+                      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 sm:gap-0">
+                        <div className="flex flex-wrap items-center gap-2 text-xs">
+                          <span className="px-2 py-1 rounded bg-indigo-100 text-indigo-700 capitalize">
                             {template.category}
                           </span>
                           <span className="px-2 py-1 rounded bg-gray-100 text-gray-600 capitalize">
                             {template.style}
                           </span>
                         </div>
-                        <div className="flex items-center space-x-1 text-xs text-gray-400">
-                          <FileText className="h-4 w-4" />
+                        <div className="flex items-center space-x-1 text-xs text-gray-500">
+                          <FileText className="h-3 w-3 sm:h-4 sm:w-4" />
                           <span>Canva Ready</span>
                         </div>
                       </div>
@@ -383,11 +384,11 @@ export default function TemplatesPage() {
               transition={{ duration: 0.3 }}
               className="text-center py-12"
             >
-              <FileText className="h-12 w-12 sm:h-16 sm:w-16 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-base sm:text-lg font-semibold text-foreground mb-2">
+              <FileText className="h-12 w-12 sm:h-16 sm:w-16 text-gray-400 mx-auto mb-4" />
+              <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-2">
                 No templates found
               </h3>
-              <p className="text-sm sm:text-base text-muted-foreground mb-6">
+              <p className="text-sm sm:text-base text-gray-600 mb-6">
                 Try adjusting your filters to find what you're looking for.
               </p>
               <BrandButton
@@ -397,6 +398,7 @@ export default function TemplatesPage() {
                   setSelectedStyle("all");
                   setSelectedColor("all");
                 }}
+                className="min-h-[44px]"
               >
                 Clear Filters
               </BrandButton>
@@ -411,27 +413,27 @@ export default function TemplatesPage() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="mt-16 text-center"
           >
-            <Card className="gradient-primary text-white border-none">
-              <CardContent className="p-8">
-                <Sparkles className="h-12 w-12 mx-auto mb-4 text-white" />
-                <h2 className="text-2xl font-bold mb-2">
+              <Card className="gradient-primary text-white border-none">
+              <CardContent className="p-6 sm:p-8 md:p-10">
+                <Sparkles className="h-10 w-10 sm:h-12 sm:w-12 mx-auto mb-4 text-white" />
+                <h2 className="text-xl sm:text-2xl md:text-3xl font-bold mb-2 sm:mb-3">
                   Don't see what you're looking for?
                 </h2>
-                <p className="text-blue-100 mb-6 max-w-2xl mx-auto">
+                <p className="text-indigo-100 mb-6 sm:mb-8 max-w-2xl mx-auto text-sm sm:text-base">
                   Upload your own template or integrate with Canva to create custom certificates
                 </p>
-                <div className="flex flex-wrap justify-center gap-4">
+                <div className="flex flex-col sm:flex-row flex-wrap justify-center gap-3 sm:gap-4">
                   <BrandButton
                     variant="accent"
                     size="lg"
-                    className="text-gray-900 font-semibold"
+                    className="text-gray-900 font-semibold min-h-[44px] w-full sm:w-auto"
                   >
                     Upload Custom Template
                   </BrandButton>
                   <BrandButton
                     variant="outline"
                     size="lg"
-                    className="border-white text-white hover:bg-white hover:text-primary"
+                    className="border-white text-white hover:bg-white hover:text-indigo-600 min-h-[44px] w-full sm:w-auto"
                   >
                     Browse Canva Templates
                   </BrandButton>

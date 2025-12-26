@@ -6,7 +6,7 @@ function Skeleton({
 }: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("animate-pulse rounded-md bg-muted", className)}
+      className={cn("animate-pulse rounded-md bg-gray-200", className)}
       {...props}
     />
   );
@@ -69,7 +69,7 @@ function SkeletonTable({ rows = 5, cols = 3 }: { rows?: number; cols?: number })
 
 function SkeletonCertificatePreview() {
   return (
-    <div className="border-2 border-dashed border-muted rounded-lg aspect-[8.5/11] p-8">
+    <div className="border-2 border-dashed border-gray-200 rounded-lg aspect-[8.5/11] p-6 sm:p-8">
       <div className="space-y-6">
         <Skeleton className="h-16 w-full" />
         <Skeleton className="h-8 w-3/4 mx-auto" />

@@ -4,6 +4,7 @@ from pydantic import BaseModel
 from typing import List, Optional
 import os
 import logging
+import uuid
 from app.services.csv_service import CSVService
 from app.services.placeholder import PlaceholderService
 from app.services.placeholder_advanced import AdvancedPlaceholderService
@@ -12,11 +13,15 @@ from app.services.zip_service import ZIPService
 from app.config import settings
 from app.utils.logger import CSVAuditLogger
 from app.utils.metadata import UploadMetadata
+from app.services.job_service import JobService
 
 logger = logging.getLogger(__name__)
 audit_logger = CSVAuditLogger()
 
 router = APIRouter(prefix="/generate", tags=["generate"])
+
+# Simple in-memory job store (in production, use Redis or database)
+job_store: dict = {}
 
 
 class GenerateRequest(BaseModel):
@@ -26,6 +31,18 @@ class GenerateRequest(BaseModel):
     names: Optional[List[str]] = None
     placeholder_text: str = "{{NAME}}"
     output_format: str = "pdf"
+
+
+class MappingConfig(BaseModel):
+    """Mapping configuration for CSV columns to certificate fields"""
+    name: str
+    role: Optional[str] = None
+    date: Optional[str] = None
+
+
+class GenerateWithMappingRequest(BaseModel):
+    """Request schema for certificate generation with mapping config"""
+    mapping: MappingConfig
 
 
 @router.post("/preview")
@@ -115,304 +132,81 @@ async def generate_preview(request: GenerateRequest):
 
 
 @router.post("/batch")
-async def generate_batch(background_tasks: BackgroundTasks, placeholder_text: str = "{{NAME}}"):
+async def generate_batch(
+    request: Optional[GenerateWithMappingRequest] = None,
+    placeholder_text: str = "{{NAME}}"
+):
     """
     Generate certificates using the latest uploaded template and CSV
-    
-    Automatically detects the most recent template and CSV file uploaded,
-    then generates certificates for all participants in the CSV.
-    
-    Args:
-        background_tasks: FastAPI background tasks
-        placeholder_text: Placeholder text to search for in template (default: {{NAME}})
-    
-    Returns:
-        JSON response with generation results and download URL
     """
     try:
         # Get latest uploads
         metadata = UploadMetadata()
         latest = metadata.get_latest_uploads()
         
-        # Validate that both files exist
-        if not latest["template"]:
-            raise HTTPException(
-                status_code=404,
-                detail="No template file found. Please upload a template first."
-            )
-        
-        if not latest["csv"]:
-            raise HTTPException(
-                status_code=404,
-                detail="No CSV file found. Please upload a CSV file first."
-            )
-        
+        if not latest["template"] or not latest["csv"]:
+            raise HTTPException(status_code=404, detail="Missing template or CSV file")
+            
         template_path = latest["template"]["file_path"]
         csv_path = latest["csv"]["file_path"]
         
-        # Verify files still exist
-        if not metadata.validate_file_exists(template_path):
-            raise HTTPException(
-                status_code=404,
-                detail=f"Template file not found: {template_path}"
-            )
+        # Verify files exist
+        if not os.path.exists(template_path) or not os.path.exists(csv_path):
+            raise HTTPException(status_code=404, detail="Files not found on server")
+            
+        # Estimate total items (read CSV quickly)
+        try:
+            df = CSVService.read_csv(csv_path)
+            total_items = len(df)
+        except:
+            total_items = 0
+            
+        # Create Job
+        job_id = str(uuid.uuid4())
+        JobService.create_job(job_id, total_items, {
+            "template": latest["template"]["filename"],
+            "csv": latest["csv"]["filename"]
+        })
         
-        if not metadata.validate_file_exists(csv_path):
-            raise HTTPException(
-                status_code=404,
-                detail=f"CSV file not found: {csv_path}"
-            )
+        # Enqueue Task
+        from app.core.queue import q
+        from app.tasks.generation_tasks import generate_batch_task
         
-        logger.info(f"Batch generation started with template: {template_path} and CSV: {csv_path}")
+        mapping_dict = request.mapping.dict() if request and request.mapping else None
         
-        # Get names from CSV
-        names = CSVService.get_names_from_csv(csv_path)
-        
-        if not names:
-            raise HTTPException(
-                status_code=400,
-                detail="No names found in CSV file. Please check your CSV format."
-            )
-        
-        logger.info(f"Found {len(names)} names to generate certificates for")
-        
-        # Find placeholder bounding box
-        logger.info(f"Finding placeholder bbox for template: {template_path}")
-        bboxes = PlaceholderService.find_placeholder_bbox(
+        # Pass arguments in the correct order matching the function signature
+        q.enqueue(
+            generate_batch_task,
+            job_id,  # First positional argument
             template_path,
+            csv_path,
+            mapping_dict,
             placeholder_text
         )
         
-        # Use the first bbox found (or None if not found)
-        bbox = bboxes[0] if bboxes else None
-        logger.info(f"Using bbox: {bbox}")
-        
-        # Convert template to image if it's a PDF
-        if template_path.lower().endswith('.pdf'):
-            template_images = PDFService.pdf_to_images(template_path)
-            template_image = template_images[0]
-        else:
-            from PIL import Image
-            template_image = Image.open(template_path)
-        
-        # Generate all certificates
-        output_dir = os.path.join(settings.UPLOAD_DIR, "certificates")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        generated_files = []
-        successful_count = 0
-        failed_count = 0
-        
-        for idx, name in enumerate(names):
-            try:
-                # Render name on template
-                result_image = PDFService.render_name_on_image(
-                    template_image,
-                    name,
-                    bbox=bbox,
-                    center=True  # Center text in bbox
-                )
-                
-                # Save certificate image
-                output_path = os.path.join(output_dir, f"certificate_{idx + 1}_{name.replace(' ', '_')}.png")
-                result_image.save(output_path, "PNG")
-                generated_files.append(output_path)
-                
-                # Log success
-                audit_logger.log_success(name, output_path, "success")
-                successful_count += 1
-                
-                logger.info(f"Generated certificate {idx + 1}/{len(names)} for: {name}")
-                
-            except Exception as e:
-                error_msg = str(e)
-                # Log failure
-                audit_logger.log_failure(name, error_msg, "failed")
-                failed_count += 1
-                logger.error(f"Error generating certificate for {name}: {e}")
-                continue
-        
-        if not generated_files:
-            raise HTTPException(status_code=500, detail="Failed to generate any certificates")
-        
-        # Create a zip file with all certificates
-        zip_path = os.path.join(output_dir, "certificates.zip")
-        ZIPService.create_zip(generated_files, zip_path)
-        
-        logger.info(f"Generated {len(generated_files)} certificates and created ZIP file")
-        
         return {
-            "message": "Certificates generated successfully",
-            "template": latest["template"]["filename"],
-            "csv": latest["csv"]["filename"],
-            "num_certificates": len(generated_files),
-            "total_requested": len(names),
-            "successful": successful_count,
-            "failed": failed_count,
-            "zip_path": zip_path,
-            "download_url": f"/api/generate/download/{os.path.basename(zip_path)}"
+            "message": "Batch generation started",
+            "job_id": job_id,
+            "status": "queued"
         }
         
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error in batch generation: {e}")
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error generating certificates: {str(e)}"
-        )
-
-
-@router.post("/")
-async def generate_certificates(request: GenerateRequest, background_tasks: BackgroundTasks):
-    """
-    Generate full batch of certificates
-    
-    This endpoint generates certificates for all names and returns a ZIP file
-    """
-    try:
-        # Validate template path exists
-        if not os.path.exists(request.template_path):
-            raise HTTPException(status_code=404, detail=f"Template not found: {request.template_path}")
-        
-        # Get all names
-        names = []
-        if request.names:
-            # Use provided names
-            names = request.names
-        elif request.csv_path:
-            # Read names from CSV
-            if not os.path.exists(request.csv_path):
-                raise HTTPException(status_code=404, detail=f"CSV file not found: {request.csv_path}")
-            names = CSVService.get_names_from_csv(request.csv_path)
-        else:
-            raise HTTPException(status_code=400, detail="Either 'names' or 'csv_path' must be provided")
-        
-        if not names:
-            raise HTTPException(status_code=400, detail="No names found to generate certificates for")
-        
-        logger.info(f"Generating {len(names)} certificates")
-        
-        # Find placeholder bounding box
-        logger.info(f"Finding placeholder bbox for template: {request.template_path}")
-        bboxes = PlaceholderService.find_placeholder_bbox(
-            request.template_path,
-            request.placeholder_text
-        )
-        
-        # Use the first bbox found (or None if not found)
-        bbox = bboxes[0] if bboxes else None
-        logger.info(f"Using bbox: {bbox}")
-        
-        # Convert template to image if it's a PDF
-        if request.template_path.lower().endswith('.pdf'):
-            template_images = PDFService.pdf_to_images(request.template_path)
-            template_image = template_images[0]
-        else:
-            from PIL import Image
-            template_image = Image.open(request.template_path)
-        
-        # Generate all certificates
-        output_dir = os.path.join(settings.UPLOAD_DIR, "certificates")
-        os.makedirs(output_dir, exist_ok=True)
-        
-        generated_files = []
-        successful_count = 0
-        failed_count = 0
-        
-        for idx, name in enumerate(names):
-            try:
-                # Render name on template
-                result_image = PDFService.render_name_on_image(
-                    template_image,
-                    name,
-                    bbox=bbox,
-                    center=True  # Center text in bbox
-                )
-                
-                # Save certificate image
-                output_path = os.path.join(output_dir, f"certificate_{idx + 1}_{name.replace(' ', '_')}.png")
-                result_image.save(output_path, "PNG")
-                generated_files.append(output_path)
-                
-                # Log success
-                audit_logger.log_success(name, output_path, "success")
-                successful_count += 1
-                
-                logger.info(f"Generated certificate {idx + 1}/{len(names)} for: {name}")
-                
-            except Exception as e:
-                error_msg = str(e)
-                # Log failure
-                audit_logger.log_failure(name, error_msg, "failed")
-                failed_count += 1
-                logger.error(f"Error generating certificate for {name}: {e}")
-                continue
-        
-        if not generated_files:
-            raise HTTPException(status_code=500, detail="Failed to generate any certificates")
-        
-        # Create a zip file with all certificates
-        zip_path = os.path.join(output_dir, "certificates.zip")
-        ZIPService.create_zip(generated_files, zip_path)
-        
-        logger.info(f"Generated {len(generated_files)} certificates and created ZIP file")
-        
-        return {
-            "message": "Certificates generated successfully",
-            "num_certificates": len(generated_files),
-            "total_requested": len(names),
-            "successful": successful_count,
-            "failed": failed_count,
-            "zip_path": zip_path,
-            "download_url": f"/api/generate/download/{os.path.basename(zip_path)}"
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error generating certificates: {e}")
-        raise HTTPException(status_code=500, detail=f"Error generating certificates: {str(e)}")
-
-
-@router.get("/download/{filename}")
-async def download_certificates(filename: str):
-    """
-    Download generated certificate ZIP file
-    """
-    try:
-        # Security: prevent directory traversal
-        if '..' in filename or '/' in filename:
-            raise HTTPException(status_code=400, detail="Invalid filename")
-        
-        zip_path = os.path.join(settings.UPLOAD_DIR, "certificates", filename)
-        
-        if not os.path.exists(zip_path):
-            raise HTTPException(status_code=404, detail="File not found")
-        
-        return FileResponse(
-            zip_path,
-            media_type="application/zip",
-            filename=filename
-        )
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"Error downloading certificates: {e}")
-        raise HTTPException(status_code=500, detail=f"Error downloading certificates: {str(e)}")
+        logger.error(f"Error starting batch generation: {e}")
+        raise HTTPException(status_code=500, detail=f"Error starting batch generation: {str(e)}")
 
 
 @router.get("/status/{job_id}")
 async def get_generation_status(job_id: str):
     """
     Get the status of a certificate generation job
-    TODO: Implement job status tracking
     """
-    return {
-        "job_id": job_id,
-        "status": "pending"
-    }
+    status = JobService.get_job_status(job_id)
+    if not status:
+        raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        
+    return status
 
 
 @router.get("/logs/success")

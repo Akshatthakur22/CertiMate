@@ -83,16 +83,16 @@ export default function SendPage() {
       console.log('📧 Fetching CSV content for recipients...');
       const { getCSVContent } = await import('@/lib/api');
       const csvData = await getCSVContent();
-      
+
       console.log('📄 CSV Content:', csvData.content);
-      
+
       // Parse CSV - handle both \n and \r\n line endings
       const lines = csvData.content.split(/\r?\n/).filter(line => line.trim());
       console.log('📄 CSV Lines:', lines);
-      
+
       const headers = lines[0].split(',').map(h => h.trim());
       console.log('📄 CSV Headers:', headers);
-      
+
       const rows = lines.slice(1);
       console.log('📄 CSV Rows:', rows);
 
@@ -115,12 +115,12 @@ export default function SendPage() {
         .map(row => {
           const cells = row.split(',').map(c => c.trim());
           console.log('📄 Row cells:', cells);
-          
+
           const email = cells[emailIdx];
           const name = nameIdx !== -1 ? cells[nameIdx] : email?.split('@')[0] || 'Recipient';
-          
+
           console.log('📄 Extracted email:', email, 'name:', name);
-          
+
           return email && email.includes('@') ? { email, name } : null;
         })
         .filter(r => r !== null) as Array<{ email: string; name: string }>;
@@ -135,7 +135,7 @@ export default function SendPage() {
 
       setSendProgress(30);
 
-      // Send batch email request
+      // Send batch email request (now queued)
       setSendProgress(50);
 
       const response = await sendCertificateEmail({
@@ -148,22 +148,31 @@ export default function SendPage() {
 
       setSendProgress(90);
 
-      // Handle response
-      if (response.successful > 0) {
-        toast.success(`Successfully sent ${response.successful} certificate(s)!`);
-      }
+      // Handle async response (job queued)
+      if (response.job_id) {
+        toast.success(`Email sending started! Processing ${response.total} recipients in background.`);
+        // Store job ID for potential status checking
+        sessionStorage.setItem("email_job_id", response.job_id);
+      } else {
+        // Legacy response handling (if backend returns immediate results)
+        const successful = response.successful ?? 0;
+        const failed = response.failed ?? 0;
 
-      if (response.failed > 0) {
-        toast.error(`${response.failed} certificate(s) failed to send`);
+        if (successful > 0) {
+          toast.success(`Successfully sent ${successful} certificate(s)!`);
+        }
+        if (failed > 0) {
+          toast.error(`${failed} certificate(s) failed to send`);
+        }
       }
 
       setSendProgress(100);
     } catch (error: any) {
       console.error("Send error:", error);
-      const errorMessage = error.response?.data?.detail || 
-                          error.response?.data?.message || 
-                          error.message || 
-                          "Failed to send certificates";
+      const errorMessage = error.response?.data?.detail ||
+        error.response?.data?.message ||
+        error.message ||
+        "Failed to send certificates";
       toast.error(errorMessage);
     } finally {
       setIsSending(false);
@@ -183,23 +192,23 @@ export default function SendPage() {
 
   return (
     <PageLayout>
-      <div className="min-h-screen py-12 sm:py-20 px-4 bg-gradient-to-br from-background via-primary/5">
+      <div className="min-h-screen py-8 sm:py-12 md:py-16 lg:py-20 px-4 sm:px-6 bg-gradient-to-br from-white via-indigo-50/30 to-white">
         <div className="container max-w-5xl mx-auto">
           {/* Header */}
           <motion.div
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
-            className="text-center mb-8 sm:mb-12"
+            className="text-center mb-6 sm:mb-8 md:mb-12"
           >
-            <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-primary/10">
+            <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-indigo-100/80 text-indigo-700 text-xs sm:text-sm font-medium mb-3 sm:mb-4">
               <Mail className="h-3 w-3 sm:h-4 sm:w-4" />
               <span>Email Sending</span>
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-foreground mb-3 sm:mb-4">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900 mb-2 sm:mb-3 md:mb-4">
               Send Certificates via Email
             </h1>
-            <p className="text-base sm:text-lg text-muted-foreground max-w-2xl mx-auto px-4">
+            <p className="text-sm sm:text-base md:text-lg text-gray-600 max-w-2xl mx-auto px-2 sm:px-4">
               Personalize and send certificates to all participants at once
             </p>
           </motion.div>
@@ -212,22 +221,22 @@ export default function SendPage() {
             className="mb-6 sm:mb-8"
           >
             {!isAuthenticated ? (
-              <Card className="border-2 border-primary/30">
+              <Card className="border-2 border-indigo-300">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
                     <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-primary/20">
-                        <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
+                      <div className="p-2 rounded-lg bg-indigo-100">
+                        <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-foreground text-sm sm:text-base">Sign in Required</h3>
-                        <p className="text-xs sm:text-sm text-muted-foreground">Connect your Gmail account to send certificates</p>
+                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Sign in Required</h3>
+                        <p className="text-xs sm:text-sm text-gray-600">Connect your Gmail account to send certificates</p>
                       </div>
                     </div>
                     <BrandButton
                       variant="gradient"
                       onClick={() => login()}
-                      className="w-full sm:w-auto"
+                      className="w-full sm:w-auto min-h-[44px]"
                     >
                       <LogIn className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
                       Sign in with Google
@@ -239,10 +248,10 @@ export default function SendPage() {
               <Card className="border-2 border-green-500/50">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" />
+                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 flex-shrink-0" />
                     <div>
-                      <h3 className="font-semibold text-foreground text-sm sm:text-base">Signed in to Gmail</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">Ready to send certificates</p>
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Signed in to Gmail</h3>
+                      <p className="text-xs sm:text-sm text-gray-600">Ready to send certificates</p>
                     </div>
                   </div>
                 </CardContent>
@@ -257,16 +266,16 @@ export default function SendPage() {
             transition={{ delay: 0.15, duration: 0.5 }}
             className="mb-6"
           >
-            <Card className="border-border">
+            <Card className="border-gray-200">
               <CardHeader>
-                <CardTitle className="text-base sm:text-lg">Email Subject</CardTitle>
+                <CardTitle className="text-base sm:text-lg text-gray-900">Email Subject</CardTitle>
               </CardHeader>
               <CardContent>
                 <input
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2 text-sm sm:text-base border border-input bg-background rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent transition-all"
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all min-h-[44px]"
                   placeholder="Your Certificate is Ready!"
                   aria-label="Email subject"
                 />
@@ -281,21 +290,21 @@ export default function SendPage() {
             transition={{ delay: 0.2, duration: 0.5 }}
             className="mb-6 sm:mb-8"
           >
-            <Card className="border-border">
+            <Card className="border-gray-200">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                  <CardTitle className="text-base sm:text-lg">Email Message Template</CardTitle>
+                  <FileText className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+                  <CardTitle className="text-base sm:text-lg text-gray-900">Email Message Template</CardTitle>
                 </div>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">
-                  Customize your email message. Use <code className="bg-primary/10">{"{{name}}"}</code> and <code className="bg-primary/10">{"{{event}}"}</code> for personalization.
+                <p className="text-xs sm:text-sm text-gray-600 mt-1">
+                  Customize your email message. Use <code className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">{"{{name}}"}</code> and <code className="bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded">{"{{event}}"}</code> for personalization.
                 </p>
               </CardHeader>
               <CardContent>
                 <textarea
                   value={emailTemplate}
                   onChange={(e) => setEmailTemplate(e.target.value)}
-                  className="w-full h-40 sm:h-48 md:h-64 p-3 sm:p-4 text-sm sm:text-base border border-input bg-background rounded-lg focus:ring-2 focus:ring-ring focus:border-transparent font-mono resize-none transition-all"
+                  className="w-full h-40 sm:h-48 md:h-64 p-3 sm:p-4 text-sm sm:text-base border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono resize-none transition-all"
                   placeholder="Hi {{name}},&#10;&#10;Congratulations on completing {{event}}!"
                   aria-label="Email template"
                 />
@@ -310,31 +319,31 @@ export default function SendPage() {
             transition={{ delay: 0.3, duration: 0.5 }}
             className="mb-6 sm:mb-8"
           >
-            <Card className="border-2 border-primary/30">
+            <Card className="border-2 border-indigo-300">
               <CardHeader>
                 <div className="flex items-center gap-2">
-                  <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-primary" />
-                  <CardTitle className="text-base sm:text-lg">Email Preview</CardTitle>
+                  <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+                  <CardTitle className="text-base sm:text-lg text-gray-900">Email Preview</CardTitle>
                 </div>
               </CardHeader>
               <CardContent>
-                <div className="bg-card rounded-lg border border-border p-4 sm:p-6 shadow-sm">
+                <div className="bg-white rounded-lg border border-gray-200 p-4 sm:p-6 shadow-sm">
                   <div className="space-y-2 mb-4">
-                    <div className="text-xs sm:text-sm text-muted-foreground">To:</div>
-                    <div className="font-medium text-foreground text-sm sm:text-base">akshat@example.com</div>
+                    <div className="text-xs sm:text-sm text-gray-600">To:</div>
+                    <div className="font-medium text-gray-900 text-sm sm:text-base">akshat@example.com</div>
                   </div>
-                  <div className="border-b border-border pb-4 mb-4">
-                    <div className="text-sm sm:text-base md:text-lg font-semibold mb-2 text-foreground">Subject: {subject}</div>
-                    <div className="text-xs sm:text-sm text-muted-foreground">From: Your Gmail</div>
+                  <div className="border-b border-gray-200 pb-4 mb-4">
+                    <div className="text-sm sm:text-base md:text-lg font-semibold mb-2 text-gray-900">Subject: {subject}</div>
+                    <div className="text-xs sm:text-sm text-gray-600">From: Your Gmail</div>
                   </div>
-                  <div className="text-foreground/90 whitespace-pre-wrap text-xs sm:text-sm leading-relaxed">
+                  <div className="text-gray-900 whitespace-pre-wrap text-xs sm:text-sm leading-relaxed">
                     {emailTemplate.replace(/{{name}}/g, "Akshat Thakur").replace(/{{event}}/g, "Hackathon 2025")}
                   </div>
-                  <div className="mt-4 border-t border-border pt-4">
-                    <div className="text-xs sm:text-sm text-muted-foreground mb-2">Attachments:</div>
+                  <div className="mt-4 border-t border-gray-200 pt-4">
+                    <div className="text-xs sm:text-sm text-gray-600 mb-2">Attachments:</div>
                     <div className="flex items-center gap-2 text-xs sm:text-sm">
-                      <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-primary" />
-                      <span className="font-medium text-primary">certificate_ZIP.zip</span>
+                      <FileText className="h-3 w-3 sm:h-4 sm:w-4 text-indigo-600" />
+                      <span className="font-medium text-indigo-600">certificate_ZIP.zip</span>
                     </div>
                   </div>
                 </div>
@@ -349,21 +358,21 @@ export default function SendPage() {
               animate={{ opacity: 1 }}
               className="mb-6 sm:mb-8"
             >
-              <Card className="bg-primary/10">
+              <Card className="bg-indigo-50 border-indigo-200">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center gap-3 mb-4">
-                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-primary" />
-                    <span className="font-semibold text-foreground text-sm sm:text-base">Sending certificates...</span>
+                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-indigo-600" />
+                    <span className="font-semibold text-gray-900 text-sm sm:text-base">Sending certificates...</span>
                   </div>
-                  <div className="w-full bg-muted rounded-full h-2 overflow-hidden">
+                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${sendProgress}%` }}
                       transition={{ duration: 0.3, ease: "easeOut" }}
-                      className="bg-gradient-to-r from-primary to-primary/80 h-full"
+                      className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full"
                     />
                   </div>
-                  <p className="text-xs sm:text-sm text-muted-foreground mt-2">{sendProgress.toFixed(0)}% complete</p>
+                  <p className="text-xs sm:text-sm text-gray-600 mt-2">{sendProgress.toFixed(0)}% complete</p>
                 </CardContent>
               </Card>
             </motion.div>
@@ -379,7 +388,7 @@ export default function SendPage() {
             <BrandButton
               variant="gradient"
               size="lg"
-              className="flex-1"
+              className="flex-1 min-h-[44px]"
               onClick={handleSend}
               disabled={isSending || !isAuthenticated}
               aria-label={isSending ? "Sending certificates" : "Send all certificates"}
@@ -399,7 +408,7 @@ export default function SendPage() {
             <BrandButton
               variant="outline"
               size="lg"
-              className="flex-1"
+              className="flex-1 min-h-[44px]"
               onClick={handleDownload}
               aria-label="Download ZIP file"
             >
@@ -409,6 +418,7 @@ export default function SendPage() {
             <BrandButton
               variant="secondary"
               size="lg"
+              className="flex-1 sm:flex-none min-h-[44px]"
               onClick={() => router.push("/upload")}
               aria-label="Start new generation"
             >

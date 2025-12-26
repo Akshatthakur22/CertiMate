@@ -21,7 +21,7 @@ export function Hero() {
         >
           {/* Small badge */}
           <div className="mb-4 inline-flex items-center gap-2 rounded-full border border-indigo-100 bg-white/80 px-3 py-1 text-xs sm:text-sm text-indigo-600 shadow-sm backdrop-blur-md">
-            🪶 Trusted by 100+ educators & creators
+            🪶 Trusted by 100+ institutions & educators
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight text-gray-900">
