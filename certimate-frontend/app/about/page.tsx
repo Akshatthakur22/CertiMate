@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Github, Twitter, Mail, Linkedin, Code, Heart } from "lucide-react";
+import { Github, Twitter, Mail, Linkedin, Code, Heart, Instagram } from "lucide-react";
 import { BrandButton } from "@/components/ui/brand-button";
 import { Card, CardContent } from "@/components/ui/card";
 import Link from "next/link";
@@ -9,9 +9,9 @@ import Link from "next/link";
 export default function AboutPage() {
   const socialLinks = [
     { icon: Github, label: "GitHub", href: "https://github.com/akshatthakur22", color: "text-gray-400" },
-    { icon: Twitter, label: "Twitter", href: "#", color: "text-gray-400" },
-    { icon: Linkedin, label: "LinkedIn", href: "#", color: "text-gray-400" },
-    { icon: Mail, label: "Email", href: "mailto:hello@certimate.app", color: "text-gray-400" },
+    { icon: Instagram, label: "Instagram", href: "https://www.instagram.com/akshat_thakur_22/?hl=en", color: "text-gray-400" },
+    { icon: Linkedin, label: "LinkedIn", href: "https://www.linkedin.com/in/akshatthakur22/", color: "text-gray-400" },
+    { icon: Mail, label: "Email", href: "mailto:certimate.ai@gmail.com", color: "text-gray-400" },
   ];
 
   return (

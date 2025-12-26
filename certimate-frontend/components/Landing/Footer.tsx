@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { Github, Twitter } from "lucide-react";
+import { Github, Linkedin, Twitter } from "lucide-react";
 
 export function Footer() {
   return (
@@ -31,11 +31,11 @@ export function Footer() {
                 <span className="text-sm">GitHub</span>
               </a>
               <a 
-                href="#" 
+                href="https://www.linkedin.com/in/akshatthakur22/" 
                 className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
               >
-                <Twitter className="h-5 w-5 group-hover:scale-110 transition-transform" />
-                <span className="text-sm">Twitter</span>
+                <Linkedin className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm">Linkedin</span>
               </a>
               <a 
                 href="#" 
