@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Poppins } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 import "../styles/theme.css";
 import { Toaster } from "sonner";
@@ -103,6 +104,7 @@ export default function RootLayout({
           {children}
           <Toaster position="top-right" />
         </GoogleOAuthProviderWrapper>
+        <Analytics />
       </body>
     </html>
   );
