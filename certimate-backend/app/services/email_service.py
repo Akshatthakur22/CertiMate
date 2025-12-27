@@ -4,6 +4,7 @@ import logging
 import time
 import uuid
 import random
+import datetime
 from typing import List, Dict, Tuple, Optional
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
@@ -15,6 +16,7 @@ from googleapiclient.discovery import build
 from google.auth.transport.requests import Request
 from google.auth.exceptions import RefreshError
 import asyncio
+from PIL import Image
 
 logger = logging.getLogger(__name__)
 
@@ -43,7 +45,8 @@ class EmailService:
         body_text: str,
         attachment_path: str,
         sender_email: str = None,
-        reply_to: str = None
+        reply_to: str = None,
+        recipient_name: str = "Recipient"
     ) -> Dict:
         """
         Create an email message with attachment, HTML support, and proper headers
@@ -52,19 +55,17 @@ class EmailService:
             # Create multipart message (mixed for attachment)
             message = MIMEMultipart('mixed')
             
-            # Set standard headers
+            # Set MANDATORY headers (no longer optional)
             message['To'] = to
             message['Subject'] = subject
             message['Date'] = formatdate(localtime=True)
             message['Message-ID'] = make_msgid(domain='certimate.app')
+            message['Reply-To'] = reply_to or sender_email or to
             
             if sender_email:
                 message['From'] = f"CertiMate <{sender_email}>"
             
-            if reply_to:
-                message['Reply-To'] = reply_to
-                
-            # Add List-Unsubscribe header (good practice for bulk)
+            # Add List-Unsubscribe header (MANDATORY for deliverability)
             message['List-Unsubscribe'] = f"<mailto:unsubscribe@certimate.app?subject=unsubscribe>"
             message['X-Entity-Ref-ID'] = str(uuid.uuid4())
             
@@ -80,11 +81,16 @@ class EmailService:
             msg_html = MIMEText(body_html, 'html')
             msg_alternative.attach(msg_html)
             
-            # Add attachment
+            # Add attachment with unique metadata
             if attachment_path and os.path.exists(attachment_path):
                 attachment_name = os.path.basename(attachment_path)
                 
-                with open(attachment_path, "rb") as attachment:
+                # Create a temporary copy with unique metadata for PDFs
+                temp_attachment_path = attachment_path
+                if attachment_path.lower().endswith(('.png', '.jpg', '.jpeg')):
+                    temp_attachment_path = EmailService._add_unique_metadata_to_image(attachment_path, recipient_name)
+                
+                with open(temp_attachment_path, "rb") as attachment:
                     part = MIMEBase('application', 'octet-stream')
                     part.set_payload(attachment.read())
                 
@@ -95,6 +101,13 @@ class EmailService:
                 )
                 message.attach(part)
                 logger.info(f"Added attachment: {attachment_name}")
+                
+                # Clean up temporary file if created
+                if temp_attachment_path != attachment_path:
+                    try:
+                        os.remove(temp_attachment_path)
+                    except:
+                        pass
             
             # Encode message
             raw_message = base64.urlsafe_b64encode(message.as_bytes()).decode('utf-8')
@@ -178,7 +191,8 @@ class EmailService:
                 body_html=body_html,
                 body_text=body_text,
                 attachment_path=certificate_path,
-                sender_email=sender_email
+                sender_email=sender_email,
+                recipient_name=recipient_name
             )
             
             # Send message
@@ -272,7 +286,8 @@ class EmailService:
                     body_html=body_html,
                     body_text=body_text,
                     attachment_path=certificate_path,
-                    sender_email=sender_email
+                    sender_email=sender_email,
+                    recipient_name=name
                 )
                 
                 message_id = await EmailService.send_message(service, message)
@@ -292,11 +307,50 @@ class EmailService:
                     'error': str(e)
                 })
             
-            # Batching delay to avoid rate limits
+            # Batching delay to avoid rate limits (2-4 seconds for deliverability)
             if i < len(recipients) - 1:
-                await asyncio.sleep(0.5)  # 500ms delay
+                delay = random.uniform(2, 4)  # Random delay between 2-4 seconds
+                logger.info(f"Delaying {delay:.1f} seconds before next email to avoid spam filters")
+                await asyncio.sleep(delay)
         
         return results
+    
+    @staticmethod
+    def _add_unique_metadata_to_image(image_path: str, recipient_name: str) -> str:
+        """
+        Add unique metadata to certificate image to ensure uniqueness
+        """
+        try:
+            img = Image.open(image_path)
+            
+            # Create a temporary file with unique metadata
+            temp_path = f"{image_path}.temp_{uuid.uuid4().hex[:8]}.png"
+            
+            # Add metadata to the image
+            metadata = {
+                'Title': f'Certificate - {recipient_name} - {datetime.datetime.now().strftime("%Y%m%d_%H%M%S")}',
+                'Subject': f'Certificate of Completion - {recipient_name}',
+                'Author': 'CertiMate Platform',
+                'Creation Date': datetime.datetime.now().isoformat(),
+                'Unique ID': str(uuid.uuid4()),
+                'Recipient': recipient_name
+            }
+            
+            # Save with metadata
+            img.save(temp_path, 'PNG', **{'pnginfo': Image.PngInfo()})
+            
+            # Add metadata to PNG info
+            pnginfo = Image.PngInfo()
+            for key, value in metadata.items():
+                pnginfo.add_text(key, str(value))
+            
+            img.save(temp_path, 'PNG', pnginfo=pnginfo)
+            
+            return temp_path
+            
+        except Exception as e:
+            logger.warning(f"Could not add metadata to image {image_path}: {e}")
+            return image_path
     
     @staticmethod
     def _find_certificate_file(certificates_dir: str, name: str) -> Optional[str]:

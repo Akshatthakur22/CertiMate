@@ -1,6 +1,5 @@
 import os
 import sys
-import redis
 from app.config import settings
 
 def check_redis():

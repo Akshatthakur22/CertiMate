@@ -30,6 +30,13 @@ class Settings(BaseSettings):
     GOOGLE_CLIENT_SECRET: str = os.getenv("GOOGLE_CLIENT_SECRET", "")
     GMAIL_SCOPE: str = "https://www.googleapis.com/auth/gmail.send"
     
+    # Logging Settings
+    LOG_LEVEL: str = "INFO"
+    LOG_FILE: str = "logs/certimate.log"
+    
+    # Database Settings
+    DATABASE_URL: str = ""
+    
     class Config:
         env_file = ".env"
 

@@ -1,15 +1,27 @@
-import os
-import redis
-from rq import Queue
-from app.config import settings
+import asyncio
+from typing import Callable, Any, Dict
+import logging
+from concurrent.futures import ThreadPoolExecutor
 
-# Initialize Redis connection
-# Use environment variable or default to localhost
-redis_url = os.getenv('REDIS_URL', 'redis://localhost:6379')
-redis_conn = redis.from_url(redis_url)
+logger = logging.getLogger(__name__)
 
-# Initialize RQ Queues
-# 'default' for normal tasks, 'high' for priority, 'low' for background
-q = Queue('default', connection=redis_conn)
-email_queue = Queue('email', connection=redis_conn)
+# Simple in-memory task executor
+class InMemoryQueue:
+    def __init__(self):
+        self.executor = ThreadPoolExecutor(max_workers=4)
+    
+    def enqueue(self, func: Callable, *args, **kwargs):
+        """Execute a function in the background"""
+        try:
+            # Run the function in a thread pool
+            future = self.executor.submit(func, *args, **kwargs)
+            logger.info(f"Task {func.__name__} enqueued for background execution")
+            return future
+        except Exception as e:
+            logger.error(f"Failed to enqueue task {func.__name__}: {e}")
+            raise
+
+# Create queue instances
+q = InMemoryQueue()
+email_queue = InMemoryQueue()
 email_q = email_queue  # Alias for convenience

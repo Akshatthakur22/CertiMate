@@ -107,15 +107,33 @@ async def send_certificates_email(request: EmailSendRequest):
                 "Best regards,\nThe CertiMate Team"
             )
         
+        # Use job-specific certificates directory where certificates are actually stored
+        from app.utils.metadata import UploadMetadata
+        metadata = UploadMetadata()
+        latest = metadata.get_latest_uploads()
+        
+        if latest.get("template") and latest.get("csv"):
+            # Find the most recent job directory
+            import glob
+            cert_dirs = glob.glob(os.path.join("uploads/certificates", "*"))
+            cert_dirs = [d for d in cert_dirs if os.path.isdir(d) and not d.endswith('.zip')]
+            cert_dirs.sort(key=os.path.getmtime, reverse=True)
+            
+            if cert_dirs:
+                certificates_dir = cert_dirs[0]  # Use most recent job directory
+            else:
+                certificates_dir = request.certificates_dir
+        else:
+            certificates_dir = request.certificates_dir
+        
         # Validate certificates directory exists
-        certificates_dir = request.certificates_dir
         if not os.path.exists(certificates_dir):
             raise HTTPException(
                 status_code=404,
                 detail=f"Certificates directory not found: {certificates_dir}"
             )
         
-        
+        logger.info(f"Using certificates directory: {certificates_dir}")
         logger.info(f"Queueing email send for {len(request.recipients)} recipients")
         
         # Convert Pydantic models to dicts for service

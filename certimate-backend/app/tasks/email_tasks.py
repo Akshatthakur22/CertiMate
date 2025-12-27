@@ -1,4 +1,5 @@
 import os
+import asyncio
 import logging
 from typing import List, Dict
 from app.services.email_service import EmailService
@@ -9,7 +10,7 @@ os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
 
 logger = logging.getLogger(__name__)
 
-async def send_email_batch_task(
+def send_email_batch_task(
     job_id: str,
     access_token: str,
     recipients: List[Dict[str, str]],
@@ -24,21 +25,38 @@ async def send_email_batch_task(
     try:
         logger.info(f"Starting email batch task for job {job_id}")
         
-        # Update total items in job
+        # Warm-up logic: limit batch size for new senders
+        total_recipients = len(recipients)
+        max_batch_size = total_recipients  # Default to full batch
+        
+        # For new senders or first-time batches, limit to 10 recipients
+        if total_recipients > 10:
+            # Simple heuristic - limit to 10 for potential first-time senders
+            max_batch_size = 10
+            logger.warning(f"Warm-up mode: Limiting batch to {max_batch_size} recipients for potential first-time sender")
+        
+        # Limit recipients if warm-up is active
+        if len(recipients) > max_batch_size:
+            recipients = recipients[:max_batch_size]
+            logger.info(f"Warm-up: Processing {max_batch_size} recipients out of {total_recipients} total")
+        
+        # Update job with actual recipient count
         JobService.create_job(job_id, len(recipients), {
             "type": "email_batch",
-            "recipients_count": len(recipients)
+            "recipients_count": len(recipients),
+            "original_total": total_recipients,
+            "warmup_limited": len(recipients) < total_recipients
         })
         
         # Send emails using the EmailService
-        result = await EmailService.send_certificates_batch(
+        result = asyncio.run(EmailService.send_certificates_batch(
             access_token=access_token,
             recipients=recipients,
             certificates_dir=certificates_dir,
             subject=subject,
             body_template=body_template,
             event_name=event_name
-        )
+        ))
         
         # Update job progress for each result
         for detail in result.get('details', []):

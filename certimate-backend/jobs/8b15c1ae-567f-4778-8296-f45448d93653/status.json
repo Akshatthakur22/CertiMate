@@ -1,0 +1,14 @@
+{
+  "job_id": "8b15c1ae-567f-4778-8296-f45448d93653",
+  "status": "completed",
+  "created_at": "2025-12-27T17:17:31.887147",
+  "updated_at": "2025-12-27T17:17:44.975602",
+  "total_items": 7,
+  "processed_items": 7,
+  "successful_items": 7,
+  "failed_items": 0,
+  "metadata": {
+    "type": "email_batch",
+    "recipients_count": 7
+  }
+}

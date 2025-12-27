@@ -1,0 +1,16 @@
+{
+  "job_id": "9fec59e4-d131-4f5c-89a6-d6856586c537",
+  "status": "queued",
+  "created_at": "2025-12-27T17:52:15.481227",
+  "updated_at": "2025-12-27T17:52:15.481230",
+  "total_items": 7,
+  "processed_items": 0,
+  "successful_items": 0,
+  "failed_items": 0,
+  "metadata": {
+    "type": "email_batch",
+    "recipients_count": 7,
+    "original_total": 7,
+    "warmup_limited": false
+  }
+}

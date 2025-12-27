@@ -1,0 +1,16 @@
+{
+  "job_id": "fb88bdf8-a633-45ff-b2de-a5af8c451cb8",
+  "status": "completed",
+  "created_at": "2025-12-27T17:54:52.636515",
+  "updated_at": "2025-12-27T17:55:21.401262",
+  "total_items": 7,
+  "processed_items": 7,
+  "successful_items": 7,
+  "failed_items": 0,
+  "metadata": {
+    "type": "email_batch",
+    "recipients_count": 7,
+    "original_total": 7,
+    "warmup_limited": false
+  }
+}
