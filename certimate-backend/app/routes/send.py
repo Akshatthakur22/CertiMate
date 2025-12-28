@@ -9,6 +9,7 @@ import logging
 import asyncio
 from app.services.email_service import EmailService
 from app.config import settings
+from app.models.schemas import EmailSendRequest as NewEmailSendRequest, EmailSendResponse, JobResponse, JobStatus
 import os
 
 logger = logging.getLogger(__name__)
@@ -22,8 +23,8 @@ class EmailRecipient(BaseModel):
     certificate_filename: Optional[str] = None
 
 
-class EmailSendRequest(BaseModel):
-    """Request schema for sending certificates"""
+class LegacyEmailSendRequest(BaseModel):
+    """Legacy request schema for sending certificates"""
     access_token: str
     recipients: List[EmailRecipient]
     subject: Optional[str] = "Your Certificate is Ready!"
@@ -32,8 +33,8 @@ class EmailSendRequest(BaseModel):
     event_name: Optional[str] = None  # For {{event}} placeholder
 
 
-@router.post("/email")
-async def send_certificates_email(request: EmailSendRequest):
+@router.post("/email", response_model=EmailSendResponse)
+async def send_certificates_email(request: LegacyEmailSendRequest):
     """
     Send certificates to multiple recipients via Gmail API
     
@@ -174,15 +175,32 @@ async def send_certificates_email(request: EmailSendRequest):
             request.event_name
         )
         
-        response = {
-            "message": f"Email sending started for {len(recipients_list)} recipients",
-            "job_id": job_id,
-            "status": "queued",
-            "total": len(recipients_list)
-        }
+        # Calculate estimated time (30 seconds per batch of 100)
+        batch_count = (len(recipients_list) + 99) // 100  # Ceiling division
+        estimated_time = batch_count * 30
+        
+        # Create batch details for response
+        batch_details = []
+        for i in range(batch_count):
+            start_idx = i * 100
+            end_idx = min(start_idx + 100, len(recipients_list))
+            batch_details.append({
+                "batch": i + 1,
+                "recipients": end_idx - start_idx,
+                "status": "queued" if i == 0 else "pending"
+            })
+        
+        response = EmailSendResponse(
+            job_id=job_id,
+            recipients_count=len(recipients_list),
+            batch_count=batch_count,
+            estimated_time=estimated_time,
+            message=f"Email sending started in {batch_count} batches",
+            batch_details=batch_details
+        )
         
         return JSONResponse(
-            content=response,
+            content=response.dict(),
             status_code=202
         )
         

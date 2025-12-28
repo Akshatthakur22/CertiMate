@@ -19,7 +19,8 @@ export function Navbar() {
     { name: "Features", href: "/#features" },
     { name: "How it Works", href: "/#workflow" },
     { name: "About", href: "/about" },
-    { name: "Contact", href: "/#contact" },
+    { name: "Docs", href: "/docs" },
+    { name: "Contact", href: "/contact" },
   ];
 
   return (
@@ -37,11 +38,11 @@ export function Navbar() {
       <div className="container mx-auto px-4">
         <div className="flex items-center justify-between h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
-            <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-white font-bold text-lg">C</span>
-            </div>
-            <span className="font-bold text-xl text-foreground">CertiMate</span>
+          <Link href="/" className="flex items-center">
+            <span className="font-extrabold text-2xl md:text-3xl">
+              <span className="text-slate-900">Certi</span>
+              <span className="text-blue-600">Mate</span>
+            </span>
           </Link>
 
           {/* Desktop Navigation */}

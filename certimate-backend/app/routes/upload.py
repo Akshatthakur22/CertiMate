@@ -6,16 +6,17 @@ import logging
 from app.config import settings
 from app.utils.fileutils import sanitize_filename
 from app.utils.metadata import UploadMetadata
+from app.models.schemas import FileUploadResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/upload", tags=["upload"])
 
 
-@router.post("/template")
+@router.post("/template", response_model=FileUploadResponse)
 async def upload_template(file: UploadFile = File(...)):
     """
     Upload certificate template (PDF or image file)
-    Saves to uploads/templates directory   helloo sexy babe
+    Saves to uploads/templates directory
     """
     try:
         # Validate file extension - allow PDF and common image formats
@@ -45,12 +46,16 @@ async def upload_template(file: UploadFile = File(...)):
         metadata = UploadMetadata()
         metadata.record_template_upload(file_path, safe_filename)
         
-        return {
-            "message": "Template uploaded successfully",
-            "filename": safe_filename,
-            "file_path": file_path,
-            "file_type": file_ext
-        }
+        # Get file size
+        file_size = os.path.getsize(file_path)
+        
+        return FileUploadResponse(
+            message="Template uploaded successfully",
+            filename=safe_filename,
+            file_path=file_path,
+            file_size=file_size,
+            file_type=file_ext
+        )
         
     except HTTPException:
         raise

@@ -32,10 +32,21 @@ export function Footer() {
               </a>
               <a 
                 href="https://www.linkedin.com/in/akshatthakur22/" 
+                target="_blank"
+                rel="noopener noreferrer"
                 className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
               >
                 <Linkedin className="h-5 w-5 group-hover:scale-110 transition-transform" />
                 <span className="text-sm">Linkedin</span>
+              </a>
+              <a 
+                href="https://x.com/akshatt66612958/" 
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors group"
+              >
+                <Twitter className="h-5 w-5 group-hover:scale-110 transition-transform" />
+                <span className="text-sm">Twitter</span>
               </a>
               <a 
                 href="#" 
@@ -80,11 +91,7 @@ export function Footer() {
                   Features
                 </a>
               </li>
-              <li>
-                <a href="#" className="hover:text-white transition-colors">
-                  Pricing
-                </a>
-              </li>
+
               <li>
                 <a href="#workflow" className="hover:text-white transition-colors">
                   How it Works
@@ -98,19 +105,19 @@ export function Footer() {
             <h3 className="font-semibold text-white mb-4">Company</h3>
             <ul className="space-y-2">
               <li>
-                <a href="#contact" className="hover:text-white transition-colors">
+                <Link href="/contact" className="hover:text-white transition-colors">
                   Contact
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <Link href="/privacy" className="hover:text-white transition-colors">
                   Privacy Policy
-                </a>
+                </Link>
               </li>
               <li>
-                <a href="#" className="hover:text-white transition-colors">
+                <Link href="/terms" className="hover:text-white transition-colors">
                   Terms of Service
-                </a>
+                </Link>
               </li>
             </ul>
           </div>
@@ -123,9 +130,9 @@ export function Footer() {
           </p>
           <div className="flex items-center space-x-8 mt-6 md:mt-0 text-sm">
             <Link href="/about" className="hover:text-white transition-colors">About</Link>
-            <Link href="#" className="hover:text-white transition-colors">Docs</Link>
-            <Link href="#" className="hover:text-white transition-colors">Privacy</Link>
-            <Link href="#" className="hover:text-white transition-colors">Contact</Link>
+            <Link href="/docs" className="hover:text-white transition-colors">Docs</Link>
+            <Link href="/privacy" className="hover:text-white transition-colors">Privacy</Link>
+            <Link href="/contact" className="hover:text-white transition-colors">Contact</Link>
           </div>
         </div>
       </div>

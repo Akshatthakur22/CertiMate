@@ -9,7 +9,7 @@ import Link from "next/link";
 export default function AboutPage() {
   const socialLinks = [
     { icon: Github, label: "GitHub", href: "https://github.com/akshatthakur22", color: "text-gray-400" },
-    { icon: Instagram, label: "Instagram", href: "https://www.instagram.com/akshat_thakur_22/?hl=en", color: "text-gray-400" },
+    { icon: Twitter, label: "Twitter", href: "https://x.com/akshatt66612958/", color: "text-gray-400" },
     { icon: Linkedin, label: "LinkedIn", href: "https://www.linkedin.com/in/akshatthakur22/", color: "text-gray-400" },
     { icon: Mail, label: "Email", href: "mailto:certimate.ai@gmail.com", color: "text-gray-400" },
   ];
@@ -19,11 +19,11 @@ export default function AboutPage() {
       {/* Header */}
       <div className="border-b border-border bg-background/80">
         <div className="container mx-auto px-4 py-4">
-          <Link href="/" className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-colors">
-            <div className="h-7 w-7 rounded-lg gradient-primary flex items-center justify-center">
-              <span className="text-white font-bold text-sm">C</span>
-            </div>
-            <span className="font-semibold text-foreground">CertiMate</span>
+          <Link href="/" className="flex items-center text-muted-foreground hover:text-foreground transition-colors">
+            <span className="font-extrabold text-xl">
+              <span className="text-slate-900">Certi</span>
+              <span className="text-blue-600">Mate</span>
+            </span>
           </Link>
         </div>
       </div>

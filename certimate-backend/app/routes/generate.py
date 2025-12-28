@@ -6,7 +6,6 @@ import os
 import logging
 import uuid
 from app.services.csv_service import CSVService
-from app.services.placeholder import PlaceholderService
 from app.services.placeholder_advanced import AdvancedPlaceholderService
 from app.services.pdf_service import PDFService
 from app.services.zip_service import ZIPService
@@ -14,6 +13,7 @@ from app.config import settings
 from app.utils.logger import CSVAuditLogger
 from app.utils.metadata import UploadMetadata
 from app.services.job_service import JobService
+from app.models.schemas import CertificateGenerateRequest, CertificateResponse, CertificateStatus, JobResponse, JobStatus
 
 logger = logging.getLogger(__name__)
 audit_logger = CSVAuditLogger()
@@ -24,8 +24,8 @@ router = APIRouter(prefix="/generate", tags=["generate"])
 job_store: dict = {}
 
 
-class GenerateRequest(BaseModel):
-    """Request schema for certificate generation"""
+class LegacyGenerateRequest(BaseModel):
+    """Legacy request schema for certificate generation"""
     template_path: str
     csv_path: Optional[str] = None
     names: Optional[List[str]] = None
@@ -46,7 +46,7 @@ class GenerateWithMappingRequest(BaseModel):
 
 
 @router.post("/preview")
-async def generate_preview(request: GenerateRequest):
+async def generate_preview(request: LegacyGenerateRequest):
     """
     Generate preview certificates (3 samples) for testing
     
@@ -58,31 +58,24 @@ async def generate_preview(request: GenerateRequest):
         if not os.path.exists(request.template_path):
             raise HTTPException(status_code=404, detail=f"Template not found: {request.template_path}")
         
-        # Get names for preview
-        names = []
-        if request.names:
-            # Use provided names
-            names = request.names[:3]  # Take first 3
-        elif request.csv_path:
-            # Read names from CSV
+        # Detect ALL placeholders in template
+        logger.info(f"Detecting all placeholders for template: {request.template_path}")
+        placeholders = AdvancedPlaceholderService.detect_all_placeholders(request.template_path)
+        logger.info(f"Found placeholders: {list(placeholders.keys())}")
+        
+        # Get CSV data with all columns
+        if request.csv_path:
             if not os.path.exists(request.csv_path):
                 raise HTTPException(status_code=404, detail=f"CSV file not found: {request.csv_path}")
-            all_names = CSVService.get_names_from_csv(request.csv_path)
-            names = all_names[:3]  # Take first 3
+            csv_data = CSVService.get_all_data(request.csv_path)
+            sample_rows = csv_data[:3]  # Take first 3 rows
         else:
-            # Use default sample names
-            names = ["John Doe", "Jane Smith", "Bob Johnson"]
-        
-        # Find placeholder bounding box
-        logger.info(f"Finding placeholder bbox for template: {request.template_path}")
-        bboxes = PlaceholderService.find_placeholder_bbox(
-            request.template_path,
-            request.placeholder_text
-        )
-        
-        # Use the first bbox found (or None if not found)
-        bbox = bboxes[0] if bboxes else None
-        logger.info(f"Using bbox: {bbox}")
+            # Use default sample data
+            sample_rows = [
+                {"name": "John Doe", "event": "Python Workshop", "date": "2024-01-15", "role": "Participant"},
+                {"name": "Jane Smith", "event": "Python Workshop", "date": "2024-01-15", "role": "Participant"},
+                {"name": "Bob Johnson", "event": "Python Workshop", "date": "2024-01-15", "role": "Participant"}
+            ]
         
         # Convert template to image if it's a PDF
         if request.template_path.lower().endswith('.pdf'):
@@ -97,18 +90,36 @@ async def generate_preview(request: GenerateRequest):
         os.makedirs(preview_dir, exist_ok=True)
         
         generated_files = []
-        for idx, name in enumerate(names):
-            # Render name on template
-            logger.info(f"Generating preview certificate {idx + 1} for: {name}")
-            result_image = PDFService.render_name_on_image(
-                template_image,
-                name,
-                bbox=bbox,
-                center=True  # Center text in bbox
-            )
+        for idx, row_data in enumerate(sample_rows):
+            # Start with template image
+            result_image = template_image.copy()
+            
+            # Render ALL placeholders on template
+            logger.info(f"Generating preview certificate {idx + 1} with data: {row_data}")
+            
+            for placeholder_name, placeholder_info in placeholders.items():
+                # Find matching CSV column (case-insensitive)
+                csv_column = None
+                for col in row_data.keys():
+                    if col.lower() == placeholder_name.lower():
+                        csv_column = col
+                        break
+                
+                if csv_column and row_data[csv_column]:
+                    # Get placeholder bbox
+                    bbox = placeholder_info.get('bbox', {})
+                    if bbox:
+                        # Render text on placeholder position
+                        result_image = PDFService.render_name_on_image(
+                            result_image,
+                            str(row_data[csv_column]),
+                            bbox=bbox,
+                            center=True
+                        )
             
             # Save preview image
-            output_path = os.path.join(preview_dir, f"preview_{idx + 1}_{name.replace(' ', '_')}.png")
+            safe_name = str(row_data.get('name', f'row_{idx}')).replace(' ', '_')
+            output_path = os.path.join(preview_dir, f"preview_{idx + 1}_{safe_name}.png")
             result_image.save(output_path, "PNG")
             generated_files.append(output_path)
         
@@ -118,10 +129,10 @@ async def generate_preview(request: GenerateRequest):
         
         return {
             "message": "Preview certificates generated successfully",
-            "num_certificates": len(names),
-            "names": names,
-            "bbox": bbox,
-            "zip_path": zip_path
+            "num_certificates": len(sample_rows),
+            "placeholders_found": list(placeholders.keys()),
+            "sample_data": sample_rows[:1],  # Show first row as example
+            "preview_zip": zip_path
         }
         
     except HTTPException:

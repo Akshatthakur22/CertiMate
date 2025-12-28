@@ -8,9 +8,10 @@ import base64
 from io import BytesIO
 from app.services.csv_service import CSVService
 from app.services.pdf_service import PDFService
-from app.services.placeholder import PlaceholderService
+from app.services.placeholder_advanced import AdvancedPlaceholderService
 from app.config import settings
 from app.utils.metadata import UploadMetadata
+from app.models.schemas import ErrorResponse
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/mapping", tags=["mapping"])
@@ -226,13 +227,46 @@ async def generate_preview(request: PreviewRequest):
         role = str(row_data.get(request.mapping.role, "")) if request.mapping.role and request.mapping.role in df.columns else ""
         date = str(row_data.get(request.mapping.date, "")) if request.mapping.date and request.mapping.date in df.columns else ""
         
+        # Auto-detect event column if role is not mapped
+        if not role:
+            event_columns = ['event', 'Event', 'EVENT', 'course', 'Course', 'COURSE', 'program', 'Program', 'PROGRAM']
+            for col in df.columns:
+                if col in event_columns:
+                    role = str(row_data.get(col, ""))
+                    logger.info(f"Auto-detected event column: {col} with value: {role}")
+                    break
+        
         if not name:
             raise HTTPException(
                 status_code=400,
                 detail="Name field is empty in the selected row"
             )
         
+        # Create mapping config dictionary
+        mapping_config = {
+            'name': request.mapping.name,
+            'event': request.mapping.role if request.mapping.role and request.mapping.role in df.columns else next((col for col in df.columns if col in ['event', 'Event', 'EVENT', 'course', 'Course', 'COURSE', 'program', 'Program', 'PROGRAM']), None),
+            'date': request.mapping.date
+        }
+        
+        # Create preview data dictionary
+        preview_data = {
+            'name': name,
+            'role': role,
+            'date': date
+        }
+        
         logger.info(f"Preview data - Name: {name}, Role: {role}, Date: {date}")
+        logger.info(f"Mapping config: {mapping_config}")
+        
+        # Detect ALL placeholders in template
+        logger.info(f"Detecting all placeholders for template: {template_path}")
+        placeholders = AdvancedPlaceholderService.detect_all_placeholders(template_path)
+        logger.info(f"Found placeholders: {list(placeholders.keys())}")
+        
+        # Debug placeholder details
+        for ph_name, ph_info in placeholders.items():
+            logger.info(f"Placeholder {ph_name}: bbox={ph_info.get('bbox')}, text='{ph_info.get('text')}', confidence={ph_info.get('confidence')}")
         
         # Load template image
         if template_path.lower().endswith('.pdf'):
@@ -242,23 +276,35 @@ async def generate_preview(request: PreviewRequest):
             from PIL import Image
             template_image = Image.open(template_path)
         
-        # Find placeholder bounding box (for name)
-        bboxes = PlaceholderService.find_placeholder_bbox(
-            template_path,
-            "{{NAME}}"
-        )
-        bbox = bboxes[0] if bboxes else None
+        # Start with template image
+        result_image = template_image.copy()
         
-        # Generate certificate with name
-        result_image = PDFService.render_name_on_image(
-            template_image,
-            name,
-            bbox=bbox,
-            center=True
-        )
-        
-        # If we have role or date, we could add them too (simplified for now)
-        # For a full implementation, you'd need to find placeholders for role/date too
+        # Render ALL placeholders with mapped data
+        for placeholder_name, placeholder_info in placeholders.items():
+            # Find matching CSV column from mapping (case-insensitive)
+            csv_column = None
+            for map_key, map_value in mapping_config.items():
+                if map_key.upper() == placeholder_name and map_value:
+                    csv_column = map_value
+                    break
+            
+            if csv_column and csv_column in preview_data and preview_data[csv_column]:
+                # Get placeholder bbox
+                bbox = placeholder_info.get('bbox', {})
+                logger.info(f"Rendering {placeholder_name}: bbox={bbox}, data='{preview_data[csv_column]}'")
+                if bbox:
+                    # Render text on placeholder position
+                    result_image = PDFService.render_name_on_image(
+                        result_image,
+                        str(preview_data[csv_column]),
+                        bbox=bbox,
+                        center=True
+                    )
+                    logger.info(f"Successfully rendered {placeholder_name} -> {csv_column}: {preview_data[csv_column]}")
+                else:
+                    logger.warning(f"No bbox found for placeholder: {placeholder_name}")
+            else:
+                logger.info(f"No mapping or data for placeholder: {placeholder_name} (csv_column={csv_column}, available_data={list(preview_data.keys())})")
         
         # Convert image to base64
         buffer = BytesIO()

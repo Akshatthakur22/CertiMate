@@ -82,6 +82,19 @@ class CSVService:
             raise
     
     @staticmethod
+    def get_all_data(file_path: str) -> List[Dict]:
+        """
+        Get all data from CSV as list of dictionaries
+        Each dictionary represents a row with column names as keys
+        """
+        try:
+            df = CSVService.read_csv(file_path)
+            return CSVService.get_records(df)
+        except Exception as e:
+            logger.error(f"Error getting all data from CSV: {e}")
+            raise
+    
+    @staticmethod
     def get_records(df: pd.DataFrame) -> List[Dict]:
         """
         Convert DataFrame to list of dictionaries
