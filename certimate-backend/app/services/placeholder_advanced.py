@@ -1,328 +1,332 @@
 """
-Advanced Placeholder Detection System
+Simple & Reliable Placeholder Detection (Image Templates Only)
 
-Detects ALL placeholders in template images ({{NAME}}, {{EVENT}}, {{DATE}}, etc.)
-and returns structured coordinate data for clean text replacement.
+Detects placeholders like:
+{name}, {event}, {date}, {role}
+
+Returns structured coordinate data for clean text replacement.
 """
-import pytesseract
-import re
-from PIL import Image, ImageEnhance, ImageFilter
-from typing import Dict, List, Tuple, Optional
-from pdf2image import convert_from_path
-import logging
+
 import json
-import os
+import logging
+import re
+from typing import Dict, List, Optional
+
+from PIL import Image, ImageEnhance, ImageFilter
+import pytesseract
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# Configure pytesseract
+# Configure tesseract
 pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
+
+# STRICT placeholder rule (double braces required)
+PLACEHOLDER_REGEX = re.compile(r"\{\{\s*([A-Za-z0-9_\- ]+?)\s*\}\}")
+MIN_CONFIDENCE = 60
 
 
 class AdvancedPlaceholderService:
     """
-    Advanced service for detecting multiple placeholders in certificate templates
-    
-    Features:
-    - PIL-based Preprocessing (Contrast, Sharpness)
-    - Multi-pass OCR (Different PSM modes)
-    - Confidence Scoring
+    Image-based placeholder detection service.
+    Keeps legacy method names for compatibility.
     """
-    
+
+    # ---------- Internal helpers ----------
+
     @staticmethod
-    def find_placeholder_bbox(template_path: str, placeholder_text: str = "{{NAME}}") -> List[Dict]:
+    def _load_image(template_path: str) -> Image.Image:
+        if template_path.lower().endswith(".pdf"):
+            raise ValueError("PDF templates are not supported in image-only placeholder detection")
+        return Image.open(template_path)
+
+    @staticmethod
+    def _run_ocr(image: Image.Image) -> Dict[str, List]:
+        return pytesseract.image_to_data(
+            image,
+            output_type=pytesseract.Output.DICT,
+            config="--psm 11"
+        )
+
+    @staticmethod
+    def _safe_confidence(conf_value) -> int:
+        try:
+            return int(float(conf_value))
+        except Exception:
+            return -1
+
+    @staticmethod
+    def _tighten_bbox(image: Image.Image, bbox: Dict, threshold: int = 240, margin: int = 1) -> Dict:
+        if not image or not bbox:
+            return bbox
+
+        img_width, img_height = image.size
+
+        left = max(int(bbox.get("left", 0)), 0)
+        top = max(int(bbox.get("top", 0)), 0)
+        width = int(bbox.get("width", 0) or 0)
+        height = int(bbox.get("height", 0) or 0)
+
+        if width <= 0 or height <= 0:
+            return bbox
+
+        right = min(left + width, img_width)
+        bottom = min(top + height, img_height)
+
+        if right <= left or bottom <= top:
+            return bbox
+
+        cropped = image.crop((left, top, right, bottom))
+        if cropped.width == 0 or cropped.height == 0:
+            return bbox
+
+        gray = cropped.convert("L")
+        binary = gray.point(lambda p: 255 if p < threshold else 0, "L")
+        content_box = binary.getbbox()
+
+        if not content_box:
+            return bbox
+
+        content_left, content_top, content_right, content_bottom = content_box
+
+        new_left = max(left + content_left - margin, 0)
+        new_top = max(top + content_top - margin, 0)
+        new_right = min(left + content_right + margin, img_width)
+        new_bottom = min(top + content_bottom + margin, img_height)
+
+        if new_right <= new_left or new_bottom <= new_top:
+            return bbox
+
+        return {
+            "left": new_left,
+            "top": new_top,
+            "width": new_right - new_left,
+            "height": new_bottom - new_top,
+        }
+
+    @staticmethod
+    def _build_placeholder_record(
+        image: Image.Image,
+        ocr_data: Dict[str, List],
+        index: int,
+        raw_token: str,
+        raw_key: str,
+        normalized_key: str,
+        confidence: int
+    ) -> Dict:
+        base_left = int(ocr_data["left"][index])
+        base_top = int(ocr_data["top"][index])
+        base_width = int(ocr_data["width"][index])
+        base_height = int(ocr_data["height"][index])
+
+        base_bbox = {
+            "left": base_left,
+            "top": base_top,
+            "width": base_width,
+            "height": base_height,
+        }
+
+        tightened_bbox = AdvancedPlaceholderService._tighten_bbox(image, base_bbox)
+
+        return {
+            "left": tightened_bbox["left"],
+            "top": tightened_bbox["top"],
+            "width": tightened_bbox["width"],
+            "height": tightened_bbox["height"],
+            "confidence": confidence,
+            "text": raw_token,
+            "raw_key": raw_key,
+            "normalized_key": normalized_key,
+            "csv_key": raw_key,
+            "lookup_key": normalized_key.lower(),
+            "bbox": {
+                "left": tightened_bbox["left"],
+                "top": tightened_bbox["top"],
+                "width": tightened_bbox["width"],
+                "height": tightened_bbox["height"],
+            }
+        }
+
+    @staticmethod
+    def _preprocess_image(image: Image.Image) -> List[Image.Image]:
+        versions = [image.copy()]
+        try:
+            # High contrast
+            contrast = ImageEnhance.Contrast(image).enhance(2.0)
+            versions.append(contrast)
+
+            # Sharpened
+            sharpened = image.filter(ImageFilter.SHARPEN)
+            versions.append(sharpened)
+
+            # Binarized
+            gray = image.convert('L')
+            binary = gray.point(lambda x: 0 if x < 140 else 255, '1')
+            versions.append(binary)
+        except Exception as exc:
+            logger.debug("Image preprocessing warning: %s", exc)
+        return versions
+
+    @staticmethod
+    def _normalize_key(raw_key: str) -> str:
+        cleaned = (raw_key or "").strip()
+        cleaned = re.sub(r"\s+", "_", cleaned)
+        cleaned = re.sub(r"[^A-Za-z0-9_]", "", cleaned)
+        if not cleaned:
+            return ""
+        return cleaned.upper()
+
+    # ---------- Public API ----------
+
+    @staticmethod
+    def detect_all_placeholders(template_path: str) -> Dict[str, Dict]:
         """
-        Find bounding boxes for placeholder text in a template image
-        
-        Args:
-            template_path: Path to the template file (PDF or image)
-            placeholder_text: Text to search for (default: {{NAME}})
-            
+        Detect all placeholders in the image template.
+
         Returns:
-            List of dictionaries containing bbox coordinates and confidence scores
-            Format: [{'left': x, 'top': y, 'width': w, 'height': h, 'confidence': c}, ...]
+        {
+          "NAME": {...},
+          "EVENT": {...}
+        }
         """
         try:
-            # Convert PDF to image if needed
-            if template_path.lower().endswith('.pdf'):
-                # Convert first page of PDF to image
-                logger.info(f"Converting PDF to image: {template_path}")
-                images = convert_from_path(template_path, dpi=300)
-                if not images:
-                    raise ValueError("No pages found in PDF")
-                image = images[0]
-            else:
-                # Load image directly
-                logger.info(f"Loading image: {template_path}")
-                image = Image.open(template_path)
-            
-            # Get image dimensions
-            width, height = image.size
-            logger.info(f"Image dimensions: {width}x{height}")
-            
-            # Use pytesseract to get detailed OCR data with bounding boxes
-            # Get bounding box data for all detected text
-            ocr_data = pytesseract.image_to_data(image, output_type=pytesseract.Output.DICT)
-            
-            # Find matches for placeholder text
-            matches = []
-            placeholder_lower = placeholder_text.lower()
-            
-            for i in range(len(ocr_data['text'])):
-                text = ocr_data['text'][i].strip()
-                if text.lower() == placeholder_lower or placeholder_lower in text.lower():
-                    left = ocr_data['left'][i]
-                    top = ocr_data['top'][i]
-                    width_bbox = ocr_data['width'][i]
-                    height_bbox = ocr_data['height'][i]
-                    confidence = ocr_data['conf'][i]
-                    
-                    match = {
-                        'left': left,
-                        'top': top,
-                        'width': width_bbox,
-                        'height': height_bbox,
-                        'confidence': confidence,
-                        'text': text
-                    }
-                    matches.append(match)
-                    logger.info(f"Found placeholder at ({left}, {top}) with confidence {confidence}")
-            
-            # If no exact match found, search for variations
-            if not matches:
-                logger.warning(f"No exact match found for '{placeholder_text}', searching for variations")
-                
-                # Common placeholder variations
-                variations = [
-                    placeholder_text,
-                    placeholder_text.replace('{', ''),
-                    placeholder_text.replace('}', ''),
-                    'NAME',
-                    'name',
-                    'Name'
-                ]
-                
-                for variation in variations:
-                    for i in range(len(ocr_data['text'])):
-                        text = ocr_data['text'][i].strip()
-                        if variation.lower() in text.lower():
-                            left = ocr_data['left'][i]
-                            top = ocr_data['top'][i]
-                            width_bbox = ocr_data['width'][i]
-                            height_bbox = ocr_data['height'][i]
-                            confidence = ocr_data['conf'][i]
-                            
-                            match = {
-                                'left': left,
-                                'top': top,
-                                'width': width_bbox,
-                                'height': height_bbox,
-                                'confidence': confidence,
-                                'text': text
-                            }
-                            matches.append(match)
-                            logger.info(f"Found placeholder variation '{text}' at ({left}, {top})")
-                    
-                    if matches:
-                        break
-            
-            # If still no matches, return center position as fallback
-            if not matches:
-                logger.warning("No placeholder found, returning center position as fallback")
-                center_x = width // 2
-                center_y = height // 2
-                matches.append({
-                    'left': center_x - 100,
-                    'top': center_y - 20,
-                    'width': 200,
-                    'height': 40,
-                    'confidence': 0,
-                    'text': 'CENTER'
-                })
-            
-            return matches
-            
-        except Exception as e:
-            logger.error(f"Error finding placeholder bbox: {e}")
-            raise
-    
+            image = AdvancedPlaceholderService._load_image(template_path)
+        except Exception as exc:
+            logger.error("Failed to open template '%s': %s", template_path, exc)
+            return {}
+
+        placeholders: Dict[str, Dict] = {}
+        psm_modes = [11, 6, 3]
+
+        for processed_image in AdvancedPlaceholderService._preprocess_image(image):
+            for psm in psm_modes:
+                try:
+                    ocr_data = pytesseract.image_to_data(
+                        processed_image,
+                        output_type=pytesseract.Output.DICT,
+                        config=f"--psm {psm}"
+                    )
+                except Exception as exc:
+                    logger.debug("OCR error (psm=%s): %s", psm, exc)
+                    continue
+
+                for index, raw_text in enumerate(ocr_data.get("text", [])):
+                    if not raw_text:
+                        continue
+
+                    confidence = AdvancedPlaceholderService._safe_confidence(ocr_data["conf"][index])
+                    if confidence < MIN_CONFIDENCE:
+                        continue
+
+                    for match in PLACEHOLDER_REGEX.finditer(raw_text):
+                        raw_key = match.group(1)
+                        normalized_key = AdvancedPlaceholderService._normalize_key(raw_key)
+                        if not normalized_key:
+                            continue
+
+                        # Keep best confidence if duplicate
+                        if normalized_key in placeholders and confidence <= placeholders[normalized_key]["confidence"]:
+                            continue
+
+                        record = AdvancedPlaceholderService._build_placeholder_record(
+                            image,
+                            ocr_data,
+                            index,
+                            match.group(0),
+                            raw_key,
+                            normalized_key,
+                            confidence
+                        )
+
+                        placeholders[normalized_key] = record
+
+                        logger.info(
+                            "Detected placeholder '%s' at (%s, %s) conf=%s (psm=%s)",
+                            normalized_key,
+                            record["left"],
+                            record["top"],
+                            confidence,
+                            psm,
+                        )
+
+        if not placeholders:
+            logger.warning("No placeholders detected in template '%s'", template_path)
+
+        return placeholders
+
+    @staticmethod
+    def find_placeholder_bbox(template_path: str, placeholder_text: str = "{name}") -> List[Dict]:
+        """
+        Legacy-compatible single placeholder lookup.
+        """
+        target_key = placeholder_text.replace("{", "").replace("}", "").upper()
+        placeholders = AdvancedPlaceholderService.detect_all_placeholders(template_path)
+
+        if target_key in placeholders:
+            record = placeholders[target_key]
+            return [{
+                "left": record["left"],
+                "top": record["top"],
+                "width": record["width"],
+                "height": record["height"],
+                "confidence": record["confidence"],
+                "text": record["text"]
+            }]
+
+        logger.warning(
+            "Placeholder '%s' not found in template '%s'",
+            placeholder_text,
+            template_path
+        )
+        return []
+
     @staticmethod
     def preprocess_image(image: Image.Image) -> List[Image.Image]:
         """
-        Generate multiple preprocessed versions of the image for better OCR using PIL only
+        Kept only for backward compatibility.
+        No preprocessing required in simplified detector.
         """
-        processed_images = []
-        
-        try:
-            # 1. Original Image
-            processed_images.append(image.copy())
-            
-            # 2. High Contrast
-            enhancer = ImageEnhance.Contrast(image)
-            high_contrast = enhancer.enhance(2.0)
-            processed_images.append(high_contrast)
-            
-            # 3. Sharpened
-            sharpened = image.filter(ImageFilter.SHARPEN)
-            processed_images.append(sharpened)
-            
-            # 4. Binarized
-            gray = image.convert('L')
-            binary = gray.point(lambda x: 0 if x < 128 else 255, '1')
-            processed_images.append(binary)
-            
-            return processed_images
-            
-        except Exception as e:
-            logger.error(f"Error preprocessing image: {e}")
-            return [image]
-    
+        return [image]
+
     @staticmethod
-    def detect_all_placeholders(
-        template_path: str,
-        pattern: str = r"\{\{(\w+)\}\}"
-    ) -> Dict[str, Dict]:
-        """
-        Detect ALL placeholders in template using multi-pass OCR
-        """
+    def save_placeholder_data(placeholders: Dict, file_path: str) -> None:
         try:
-            # Handle PDF
-            if template_path.lower().endswith('.pdf'):
-                images = convert_from_path(template_path, dpi=300)
-                image = images[0]
-            else:
-                image = Image.open(template_path)
-            
-            # Get preprocessed versions
-            images_to_scan = AdvancedPlaceholderService.preprocess_image(image)
-            
-            placeholders = {}
-            
-            # Try multiple patterns to catch different placeholder formats
-            patterns = [
-                r"\{\{(\w+)\}\}",      # {{NAME}}
-                r"\{\{(\w+)",           # {{NAME (missing closing)
-                r"(\w+)\}\}",            # NAME}} (missing opening)
-                r"\{(\w+)\}",            # {NAME}
-                r"\[(\w+)\]",            # [NAME}
-                r"<<(\w+)>>",            # <<NAME>>
-                r"(\w+)_PLACEHOLDER",    # NAME_PLACEHOLDER
-                r"\{(\w+)",              # {NAME (malformed)
-                r"(\w+)\}",              # NAME} (malformed)
-            ]
-            
-            # PSM Modes to try: 
-            # 3 = Fully automatic page segmentation
-            # 6 = Assume a single uniform block of text
-            # 11 = Sparse text (good for scattered placeholders)
-            psm_modes = [3, 11, 6]
-            
-            for img in images_to_scan:
-                for psm in psm_modes:
-                    try:
-                        config = f'--psm {psm}'
-                        ocr_data = pytesseract.image_to_data(
-                            img, output_type=pytesseract.Output.DICT, config=config
-                        )
-                        
-                        for i in range(len(ocr_data['text'])):
-                            text = ocr_data['text'][i].strip()
-                            if not text:
-                                continue
-                            
-                            # Try each pattern
-                            for pattern in patterns:
-                                pattern_obj = re.compile(pattern, re.IGNORECASE)
-                                match = pattern_obj.search(text)
-                                if match:
-                                    placeholder_name = match.group(1).upper()
-                                    
-                                    # Clean up the detected text to remove extra braces
-                                    clean_text = text.strip()
-                                    if clean_text.startswith('{') and not clean_text.startswith('{{'):
-                                        clean_text = clean_text[1:]  # Remove single leading brace
-                                    if clean_text.endswith('}') and not clean_text.endswith('}}'):
-                                        clean_text = clean_text[:-1]  # Remove single trailing brace
-                                    
-                                    # Skip if we already found a higher confidence match
-                                    if placeholder_name in placeholders:
-                                        if ocr_data['conf'][i] <= placeholders[placeholder_name]['confidence']:
-                                            continue
-                                    
-                                    placeholders[placeholder_name] = {
-                                        'left': ocr_data['left'][i],
-                                        'top': ocr_data['top'][i],
-                                        'width': ocr_data['width'][i],
-                                        'height': ocr_data['height'][i],
-                                        'confidence': ocr_data['conf'][i],
-                                        'text': clean_text,
-                                        'full_match': match.group(0),
-                                        'bbox': {
-                                            'left': ocr_data['left'][i],
-                                            'top': ocr_data['top'][i],
-                                            'width': ocr_data['width'][i],
-                                            'height': ocr_data['height'][i]
-                                        }
-                                    }
-                                    logger.info(f"Found {placeholder_name} (conf: {ocr_data['conf'][i]}, psm: {psm}) - cleaned text: '{clean_text}'")
-                                    break  # Found match, don't try other patterns for this text
-                        
-                    except Exception as e:
-                        continue
-            
-            logger.info(f"Final detection: {list(placeholders.keys())}")
-            return placeholders
-            
-        except Exception as e:
-            logger.error(f"Error detecting placeholders: {e}")
-            return {}
-    
-    @staticmethod
-    def save_placeholder_data(placeholders: Dict, file_path: str):
-        try:
-            with open(file_path, 'w') as f:
+            with open(file_path, "w", encoding="utf-8") as f:
                 json.dump(placeholders, f, indent=2)
-        except Exception as e:
-            logger.error(f"Error saving placeholder data: {e}")
-    
+        except Exception as exc:
+            logger.error("Error saving placeholder data to %s: %s", file_path, exc)
+
     @staticmethod
     def load_placeholder_data(file_path: str) -> Dict:
         try:
-            with open(file_path, 'r') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception as e:
+        except Exception:
             return {}
-    
+
     @staticmethod
-    def validate_template(
-        template_path: str,
-        required_placeholders: List[str] = None
-    ) -> Dict:
-        if required_placeholders is None:
-            required_placeholders = ["NAME"]
-        
-        placeholders = AdvancedPlaceholderService.detect_all_placeholders(template_path)
-        found_names = [name.upper() for name in placeholders.keys()]
-        required_upper = [name.upper() for name in required_placeholders]
-        
-        missing = set(required_upper) - set(found_names)
-        valid = len(missing) == 0
-        
+    def validate_template(template_path: str, required_placeholders: List[str] = None) -> Dict:
+        required = required_placeholders or ["NAME"]
+        detected = AdvancedPlaceholderService.detect_all_placeholders(template_path)
+
+        detected_keys = list(detected.keys())
+        missing = [name.upper() for name in required if name.upper() not in detected]
+
         return {
-            "valid": valid,
-            "found_placeholders": found_names,
-            "required_placeholders": required_upper,
-            "missing_placeholders": list(missing),
-            "placeholder_details": placeholders
+            "valid": not missing,
+            "found_placeholders": detected_keys,
+            "required_placeholders": [name.upper() for name in required],
+            "missing_placeholders": missing,
+            "placeholder_details": detected
         }
-    
+
     @staticmethod
     def get_placeholder_suggestions(template_path: str) -> List[str]:
-        placeholders = AdvancedPlaceholderService.detect_all_placeholders(template_path)
+        detected = AdvancedPlaceholderService.detect_all_placeholders(template_path)
         suggestions = ["NAME"]
-        common_placeholders = ["EVENT", "DATE", "COURSE", "POSITION", "ORG", "SIGNATURE"]
-        for p in common_placeholders:
-            if p not in placeholders:
-                suggestions.append(p)
+        common = ["EVENT", "DATE", "ROLE", "COURSE", "ORG"]
+        for item in common:
+            if item not in detected:
+                suggestions.append(item)
         return suggestions

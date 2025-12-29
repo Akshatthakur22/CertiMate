@@ -304,3 +304,32 @@ async def get_failure_log():
     except Exception as e:
         logger.error(f"Error retrieving failure log: {e}")
         raise HTTPException(status_code=500, detail=f"Error retrieving failure log: {str(e)}")
+
+
+@router.get("/download/{filename}")
+async def download_certificates(filename: str):
+    """Download generated certificate bundle."""
+    try:
+        if not filename.endswith(".zip"):
+            raise HTTPException(status_code=400, detail="Invalid file type")
+
+        safe_name = os.path.basename(filename)
+        if safe_name != filename:
+            raise HTTPException(status_code=400, detail="Invalid file name")
+
+        file_path = os.path.join(settings.UPLOAD_DIR, "certificates", safe_name)
+
+        if not os.path.exists(file_path):
+            raise HTTPException(status_code=404, detail="Download file not found")
+
+        return FileResponse(
+            file_path,
+            media_type="application/zip",
+            filename=safe_name
+        )
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading certificates: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading certificates: {str(e)}")

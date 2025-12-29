@@ -242,22 +242,19 @@ async def generate_preview(request: PreviewRequest):
                 detail="Name field is empty in the selected row"
             )
         
-        # Create mapping config dictionary
-        mapping_config = {
-            'name': request.mapping.name,
-            'event': request.mapping.role if request.mapping.role and request.mapping.role in df.columns else next((col for col in df.columns if col in ['event', 'Event', 'EVENT', 'course', 'Course', 'COURSE', 'program', 'Program', 'PROGRAM']), None),
-            'date': request.mapping.date
+        # Prepare case-insensitive column lookup for dynamic placeholders
+        normalized_columns = {
+            AdvancedPlaceholderService._normalize_key(col): col
+            for col in df.columns
         }
-        
-        # Create preview data dictionary
-        preview_data = {
-            'name': name,
-            'role': role,
-            'date': date
+
+        # Row dictionary for logging/response
+        row_dict = {
+            col: str(row_data.get(col, "")) if isinstance(row_data, dict) else str(row_data[col])
+            for col in df.columns
         }
         
         logger.info(f"Preview data - Name: {name}, Role: {role}, Date: {date}")
-        logger.info(f"Mapping config: {mapping_config}")
         
         # Detect ALL placeholders in template
         logger.info(f"Detecting all placeholders for template: {template_path}")
@@ -281,30 +278,44 @@ async def generate_preview(request: PreviewRequest):
         
         # Render ALL placeholders with mapped data
         for placeholder_name, placeholder_info in placeholders.items():
-            # Find matching CSV column from mapping (case-insensitive)
-            csv_column = None
-            for map_key, map_value in mapping_config.items():
-                if map_key.upper() == placeholder_name and map_value:
-                    csv_column = map_value
-                    break
-            
-            if csv_column and csv_column in preview_data and preview_data[csv_column]:
-                # Get placeholder bbox
-                bbox = placeholder_info.get('bbox', {})
-                logger.info(f"Rendering {placeholder_name}: bbox={bbox}, data='{preview_data[csv_column]}'")
-                if bbox:
-                    # Render text on placeholder position
-                    result_image = PDFService.render_name_on_image(
-                        result_image,
-                        str(preview_data[csv_column]),
-                        bbox=bbox,
-                        center=True
-                    )
-                    logger.info(f"Successfully rendered {placeholder_name} -> {csv_column}: {preview_data[csv_column]}")
-                else:
-                    logger.warning(f"No bbox found for placeholder: {placeholder_name}")
+            csv_column = normalized_columns.get(placeholder_name)
+
+            if not csv_column and placeholder_info.get('raw_key'):
+                raw_normalized = AdvancedPlaceholderService._normalize_key(placeholder_info['raw_key'])
+                csv_column = normalized_columns.get(raw_normalized)
+
+            if not csv_column:
+                logger.info(
+                    "No matching CSV column for placeholder %s (available columns: %s)",
+                    placeholder_name,
+                    list(df.columns)
+                )
+                continue
+
+            value = str(row_dict.get(csv_column, "")).strip()
+            if not value:
+                logger.info(
+                    "Skipping placeholder %s: empty value in column '%s'",
+                    placeholder_name,
+                    csv_column
+                )
+                continue
+
+            # Get placeholder bbox
+            bbox = placeholder_info.get('bbox', {})
+            logger.info(f"Rendering {placeholder_name}: bbox={bbox}, data='{value}'")
+            if bbox:
+                # Render text on placeholder position
+                result_image = PDFService.render_name_on_image(
+                    result_image,
+                    value,
+                    bbox=bbox,
+                    center=True,
+                    placeholder_hint=placeholder_info.get('raw_key') or placeholder_name
+                )
+                logger.info(f"Successfully rendered {placeholder_name} -> {csv_column}: {value}")
             else:
-                logger.info(f"No mapping or data for placeholder: {placeholder_name} (csv_column={csv_column}, available_data={list(preview_data.keys())})")
+                logger.warning(f"No bbox found for placeholder: {placeholder_name}")
         
         # Convert image to base64
         buffer = BytesIO()
@@ -318,11 +329,7 @@ async def generate_preview(request: PreviewRequest):
             "success": True,
             "message": "Preview certificate generated successfully",
             "preview_image": f"data:image/png;base64,{image_base64}",
-            "preview_data": {
-                "name": name,
-                "role": role,
-                "date": date
-            }
+            "preview_data": row_dict
         }
         
     except HTTPException:

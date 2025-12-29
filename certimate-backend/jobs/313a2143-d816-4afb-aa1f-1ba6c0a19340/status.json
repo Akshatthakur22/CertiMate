@@ -1,0 +1,15 @@
+{
+  "job_id": "313a2143-d816-4afb-aa1f-1ba6c0a19340",
+  "status": "completed",
+  "created_at": "2025-12-28T20:18:09.397452",
+  "updated_at": "2025-12-28T20:18:11.012297",
+  "total_items": 13,
+  "processed_items": 13,
+  "successful_items": 13,
+  "failed_items": 0,
+  "metadata": {
+    "template": "Blue_Simple_Minimalist_Participation_Certificate__1_.png",
+    "csv": "certificates_data.csv"
+  },
+  "download_url": "/api/generate/download/313a2143-d816-4afb-aa1f-1ba6c0a19340.zip"
+}

@@ -5,7 +5,7 @@ os.environ['OBJC_DISABLE_INITIALIZE_FORK_SAFETY'] = 'YES'
 
 import logging
 import uuid
-from typing import List, Optional, Dict
+from typing import Dict, Optional
 from app.services.job_service import JobService
 from app.services.pdf_service import PDFService
 from app.services.csv_service import CSVService
@@ -24,23 +24,32 @@ def generate_batch_task(job_id: str, template_path: str, csv_path: str, mapping:
         
         # Get data from CSV
         df = CSVService.read_csv(csv_path)
-        
-        if mapping:
-            # Extract names using mapped column
-            if mapping.get('name') not in df.columns:
-                JobService.update_progress(job_id, False, f"Column '{mapping.get('name')}' not found in CSV")
-                return
-            
-            names = df[mapping.get('name')].dropna().astype(str).str.strip().tolist()
-            names = [n for n in names if n]
-        else:
-            # Fallback to auto-detection
-            names = CSVService.get_names_from_csv(csv_path)
-            
-        if not names:
-            JobService.update_progress(job_id, False, "No names found in CSV")
+
+        mapping = mapping or {}
+
+        normalized_columns = {
+            AdvancedPlaceholderService._normalize_key(col): col
+            for col in df.columns
+        }
+
+        def resolve_column(column_name: Optional[str]) -> Optional[str]:
+            if not column_name:
+                return None
+            normalized = AdvancedPlaceholderService._normalize_key(column_name)
+            resolved = normalized_columns.get(normalized)
+            if not resolved:
+                logger.warning(
+                    "Column '%s' from mapping not found. Available columns: %s",
+                    column_name,
+                    list(df.columns)
+                )
+            return resolved
+
+        name_column = resolve_column(mapping.get('name')) or df.columns[0]
+        if name_column not in df.columns:
+            JobService.update_progress(job_id, False, f"Name column '{name_column}' not found in CSV")
             return
-            
+
         # Update total items in job
         # (Note: Job was created with estimated total, we can update if needed or just track progress)
         
@@ -63,24 +72,58 @@ def generate_batch_task(job_id: str, template_path: str, csv_path: str, mapping:
             from PIL import Image
             template_image = Image.open(template_path)
             
-        # Generate certificates
         output_dir = os.path.join(settings.UPLOAD_DIR, "certificates", job_id)
         os.makedirs(output_dir, exist_ok=True)
         
         generated_files = []
         
-        for idx, name in enumerate(names):
+        for idx, (_, row) in enumerate(df.iterrows()):
             try:
-                # Render name on template
-                result_image = PDFService.render_name_on_image(
-                    template_image,
-                    name,
-                    bbox=bbox,
-                    center=True
-                )
-                
+                row_dict = {col: str(row.get(col, "")) for col in df.columns}
+
+                name_value = row_dict.get(name_column, "").strip()
+                if not name_value:
+                    logger.warning(f"Row {idx} has empty name, skipping")
+                    JobService.update_progress(job_id, False, "Empty name", item_id=f"row_{idx}")
+                    continue
+
+                result_image = template_image.copy()
+                for placeholder_name, placeholder_info in placeholders.items():
+                    csv_column = normalized_columns.get(placeholder_name)
+
+                    if not csv_column and placeholder_info.get('raw_key'):
+                        raw_normalized = AdvancedPlaceholderService._normalize_key(placeholder_info['raw_key'])
+                        csv_column = normalized_columns.get(raw_normalized)
+
+                    if not csv_column:
+                        logger.info(
+                            "No matching CSV column for placeholder %s (available columns: %s)",
+                            placeholder_name,
+                            list(df.columns)
+                        )
+                        continue
+
+                    value = row_dict.get(csv_column, "").strip()
+                    if not value:
+                        logger.info(
+                            "Skipping placeholder %s: empty value in column '%s'",
+                            placeholder_name,
+                            csv_column
+                        )
+                        continue
+
+                    bbox_current = placeholder_info.get('bbox', {})
+                    if bbox_current:
+                        result_image = PDFService.render_name_on_image(
+                            result_image,
+                            value,
+                            bbox=bbox_current,
+                            center=True
+                        )
+
                 # Save certificate image
-                filename = f"certificate_{idx + 1}_{name.replace(' ', '_')}.png"
+                safe_name = "".join(c for c in name_value if c.isalnum() or c in (' ', '_', '-')).strip()
+                filename = f"certificate_{idx + 1}_{safe_name.replace(' ', '_')}.png"
                 output_path = os.path.join(output_dir, filename)
                 result_image.save(output_path, "PNG")
                 generated_files.append(output_path)
@@ -89,8 +132,8 @@ def generate_batch_task(job_id: str, template_path: str, csv_path: str, mapping:
                 JobService.update_progress(job_id, True)
                 
             except Exception as e:
-                logger.error(f"Error generating certificate for {name}: {e}")
-                JobService.update_progress(job_id, False, str(e), item_id=name)
+                logger.error(f"Error generating certificate for row {idx}: {e}")
+                JobService.update_progress(job_id, False, str(e), item_id=name_value or f"row_{idx}")
         
         if generated_files:
             # Create ZIP

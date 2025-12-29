@@ -1,0 +1,15 @@
+{
+  "job_id": "ce994568-a99f-4cde-a47a-75637db49525",
+  "status": "completed",
+  "created_at": "2025-12-29T13:45:29.831811",
+  "updated_at": "2025-12-29T13:45:32.754522",
+  "total_items": 7,
+  "processed_items": 7,
+  "successful_items": 7,
+  "failed_items": 0,
+  "metadata": {
+    "template": "certificate_template.png",
+    "csv": "students.csv"
+  },
+  "download_url": "/api/generate/download/ce994568-a99f-4cde-a47a-75637db49525.zip"
+}
