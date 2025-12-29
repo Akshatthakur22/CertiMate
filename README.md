@@ -1,37 +1,55 @@
 # 🎓 CertiMate
 
-Automated certificate generation — simple and practical.
+**Generate certificates in minutes, not hours.**
 
-CertiMate helps generate certificates in bulk without manual effort.  
-Upload a certificate design, add a CSV, and generate personalized certificates in minutes.
+CertiMate is a free, AI-powered tool that helps educators and event organizers generate hundreds of personalized certificates automatically — without manual editing, complex tools, or signups.
 
----
-
-## ✨ Why CertiMate
-
-I built CertiMate after watching a college event organizer spend hours manually creating certificates for 200+ participants.
-
-That kind of repetitive work felt unnecessary — it’s something software should handle.
-
-CertiMate exists to remove that friction.
+🔗 **Live App:** https://certimate-five.vercel.app
 
 ---
 
-## 🚀 What It Does
+## 🚀 What is CertiMate?
 
-- Upload certificate templates (PDF, PNG, JPG)
-- Detect text areas automatically using OCR
-- Accept recipient data via CSV
-- Generate certificates in bulk
-- Preview output before download
-- Download all certificates as a ZIP
-- No account or signup required
+CertiMate automates the most time-consuming part of certificate creation.
+
+Instead of manually editing names, adjusting text, and exporting files one by one, you simply:
+- Upload a certificate design
+- Upload a CSV with participant details
+- Let CertiMate handle the rest
+
+It uses **OCR (Optical Character Recognition)** to understand your design and automatically place names with proper alignment and formatting.
+
+---
+
+## ✨ Why People Use CertiMate
+
+- ⏱️ Save hours of repetitive manual work  
+- 📄 Use existing certificate designs (PDF or images)  
+- 🧠 No need to manually position text  
+- 📊 Handle large participant lists easily  
+- 🔓 No account, no signup, no paywall  
+
+Built for people who just want things to work.
+
+---
+
+## ⚙️ Key Features
+
+- 📂 Upload certificate templates (PDF, PNG, JPG)
+- 🤖 Automatic text detection using OCR
+- 📊 CSV-based recipient upload
+- 👀 Preview before generating
+- ⚡ Bulk certificate generation
+- 📦 Download all certificates as a ZIP
+- 🚫 No signup required
 
 ---
 
 ## 🧠 How It Works
 
-Upload template → OCR scans text → Upload CSV → Preview → Generate & download
+`Upload template → OCR detects text → Upload CSV → Preview → Generate & download`
+
+Simple input. Automated output.
 
 ---
 
@@ -46,7 +64,7 @@ Upload template → OCR scans text → Upload CSV → Preview → Generate & dow
 **Backend**
 - FastAPI (Python)
 - Tesseract OCR
-- Pillow, pdf2image
+- Pillow & pdf2image
 - Pandas
 
 **Infrastructure**
@@ -58,31 +76,36 @@ Upload template → OCR scans text → Upload CSV → Preview → Generate & dow
 
 ## 👨‍💻 About the Builder
 
-Hi, I’m Akshat.
+Hey, I’m **Akshat** 👋  
 
-I like building small tools that remove repetitive work.  
-CertiMate reflects my preference for simple systems that solve real problems without unnecessary complexity.
+I build simple tools that remove boring, repetitive work.  
+CertiMate started after I watched someone spend an entire weekend manually creating certificates for hundreds of participants.
 
-I believe automation should be accessible and easy to use.
+I believe if software can save time, it should — without friction, cost, or complexity.
 
 ---
 
-## 🌱 Future Work
+## 🌱 What’s Coming Next
 
-- Email delivery of certificates
-- Support for more template layouts
-- Bulk editing improvements
-- Public API access
+- 📬 Automatic email delivery
+- 🧩 More template formats
+- 🗂️ Bulk editing tools
+- 🔌 API access for integrations
 
 ---
 
 ## 🤝 Contributing
 
-Issues and pull requests are welcome.  
-If you notice a problem or have an improvement, feel free to open an issue.
+Ideas, issues, and pull requests are welcome.  
+If you have feedback or want to improve CertiMate, feel free to open an issue.
 
 ---
 
 ## 📄 License
 
 MIT License
+
+---
+
+Built with ❤️ by Akshat  
+🔗 https://certimate-five.vercel.app
