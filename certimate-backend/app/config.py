@@ -21,7 +21,11 @@ class Settings(BaseSettings):
     UPLOAD_DIR: str = "uploads"
     
     # Tesseract OCR Settings
-    TESSERACT_CMD: str = "/opt/homebrew/bin/tesseract"  # Homebrew path for macOS
+    # Auto-detect based on environment: macOS (Homebrew) vs Linux (apt/system)
+    TESSERACT_CMD: str = os.getenv(
+        "TESSERACT_CMD",
+        "/opt/homebrew/bin/tesseract" if os.path.exists("/opt/homebrew/bin/tesseract") else "tesseract"
+    )
     
     # Gmail API Settings
     # Note: OAuth token is passed from frontend, not stored here

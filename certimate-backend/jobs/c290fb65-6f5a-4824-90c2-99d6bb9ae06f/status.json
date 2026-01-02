@@ -1,0 +1,19 @@
+{
+  "job_id": "c290fb65-6f5a-4824-90c2-99d6bb9ae06f",
+  "status": "completed",
+  "created_at": "2026-01-02T15:43:07.688298",
+  "updated_at": "2026-01-02T15:43:10.890467",
+  "total_items": 13,
+  "processed_items": 13,
+  "successful_items": 13,
+  "failed_items": 0,
+  "metadata": {
+    "template": "certificate_template.png",
+    "csv": "certificates_data.csv",
+    "parallel": true
+  },
+  "download_url": "/api/generate/download/c290fb65-6f5a-4824-90c2-99d6bb9ae06f",
+  "download_filename": "certificates_c290fb65-6f5a-4824-90c2-99d6bb9ae06f.zip",
+  "download_available": true,
+  "output_dir": "uploads/certificates/c290fb65-6f5a-4824-90c2-99d6bb9ae06f"
+}

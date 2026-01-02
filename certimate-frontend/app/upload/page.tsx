@@ -94,6 +94,18 @@ export default function UploadPage() {
 
     setIsUploading(true);
     try {
+      // First, wake up the backend (Render free tier cold start)
+      toast.info("Connecting to server...", { duration: 2000 });
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(10000) 
+        });
+      } catch (wakeError) {
+        console.warn("Wake-up ping failed (may still work):", wakeError);
+      }
+      
+      toast.info("Uploading template...");
       const result = await uploadTemplate(file);
       
       // Backend returns success if no exception is thrown
@@ -106,11 +118,22 @@ export default function UploadPage() {
       router.push("/mapping");
     } catch (error: any) {
       console.error("Upload error:", error);
-      const errorMessage = error.response?.data?.detail || 
-                          error.response?.data?.message || 
-                          error.message || 
-                          "Failed to upload template. Please try again.";
-      toast.error(errorMessage);
+      
+      // Better error messages for common Render issues
+      let errorMessage = "Failed to upload template.";
+      
+      if (error.code === "ERR_NETWORK" || error.code === "ERR_EMPTY_RESPONSE") {
+        errorMessage = "Server not responding. Render may be starting up (takes ~30s). Please try again in a moment.";
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Upload timed out. Server may be cold-starting. Please try again.";
+      } else {
+        errorMessage = error.response?.data?.detail || 
+                      error.response?.data?.message || 
+                      error.message || 
+                      "Failed to upload template. Please try again.";
+      }
+      
+      toast.error(errorMessage, { duration: 5000 });
     } finally {
       setIsUploading(false);
     }

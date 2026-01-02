@@ -113,6 +113,7 @@ export async function uploadTemplate(file: File): Promise<UploadTemplateResponse
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      timeout: 180000, // 3 minutes for uploads (Render cold start + upload time)
     }
   );
 
@@ -133,6 +134,7 @@ export async function uploadCSV(file: File): Promise<UploadCSVResponse> {
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      timeout: 180000, // 3 minutes for uploads (Render cold start + upload time)
     }
   );
 
