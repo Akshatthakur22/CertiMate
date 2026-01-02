@@ -6,23 +6,25 @@ from collections import Counter
 import logging
 import os
 from app.config import settings
+from app.utils.template_cache import get_cached_template_metadata, cache_template_metadata
 
 logger = logging.getLogger(__name__)
 
 # Configure pytesseract to use the correct tesseract path
 pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
 
-# Preferred font candidates ordered by priority
+# Preferred fonts to try before falling back to system defaults
 PREFERRED_FONTS = [
-    "/System/Library/Fonts/Supplemental/Garamond.ttf",
-    "/System/Library/Fonts/Supplemental/Baskerville.ttc",
-    "/System/Library/Fonts/Supplemental/Times New Roman.ttf",
-    "/Library/Fonts/Garamond.ttf",
-    "/Library/Fonts/Times New Roman.ttf",
-    "C:/Windows/Fonts/GARA.TTF",
-    "C:/Windows/Fonts/TIMES.TTF",
-    "C:/Windows/Fonts/TIMESBD.TTF",
+    "/System/Library/Fonts/Supplemental/Arial.ttf",  # macOS
+    "/System/Library/Fonts/Supplemental/Times New Roman.ttf",  # macOS
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",  # common Linux
+    "/usr/share/fonts/truetype/liberation/LiberationSans-Regular.ttf",  # common Linux
+    "C:/Windows/Fonts/arial.ttf",  # Windows
+    "C:/Windows/Fonts/times.ttf",  # Windows
 ]
+
+# Simple font fallback - use system default
+DEFAULT_FONT = None  # PIL will use default font
 
 
 class PDFService:
@@ -31,9 +33,15 @@ class PDFService:
     @staticmethod
     def extract_text_from_pdf(pdf_path: str) -> str:
         """
-        Extract text from PDF using OCR
+        Extract text from PDF using OCR with caching
         """
         try:
+            # Check cache first
+            cached_data = get_cached_template_metadata(pdf_path)
+            if cached_data and "ocr_text" in cached_data:
+                logger.info(f"Using cached OCR text for {pdf_path}")
+                return cached_data["ocr_text"]
+            
             # Convert PDF to images
             images = convert_from_path(pdf_path)
             
@@ -43,7 +51,19 @@ class PDFService:
                 text = pytesseract.image_to_string(image)
                 text_content.append(f"Page {i+1}:\n{text}")
             
-            return "\n\n".join(text_content)
+            ocr_text = "\n\n".join(text_content)
+            
+            # Cache the OCR result (placeholders will be cached separately)
+            cache_template_metadata(
+                pdf_path, 
+                ocr_text=ocr_text, 
+                placeholders={},
+                font_info={}
+            )
+            
+            logger.info(f"Cached OCR text for {pdf_path}")
+            return ocr_text
+            
         except Exception as e:
             logger.error(f"Error extracting text from PDF: {e}")
             raise

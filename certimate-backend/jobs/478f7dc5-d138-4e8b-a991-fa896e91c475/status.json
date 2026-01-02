@@ -1,0 +1,15 @@
+{
+  "job_id": "478f7dc5-d138-4e8b-a991-fa896e91c475",
+  "status": "completed_with_errors",
+  "created_at": "2026-01-02T13:31:10.896803",
+  "updated_at": "2026-01-02T13:31:11.451731",
+  "total_items": 13,
+  "processed_items": 13,
+  "successful_items": 10,
+  "failed_items": 3,
+  "metadata": {
+    "template": "certificate_template.png",
+    "csv": "certificates_data.csv",
+    "parallel": true
+  }
+}

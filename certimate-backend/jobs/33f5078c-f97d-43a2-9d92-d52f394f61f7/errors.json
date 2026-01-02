@@ -1,0 +1,17 @@
+[
+  {
+    "item_id": null,
+    "error": "cannot schedule new futures after shutdown",
+    "timestamp": "2026-01-02T13:35:28.340849"
+  },
+  {
+    "item_id": null,
+    "error": "cannot schedule new futures after shutdown",
+    "timestamp": "2026-01-02T13:35:28.478643"
+  },
+  {
+    "item_id": null,
+    "error": "cannot schedule new futures after shutdown",
+    "timestamp": "2026-01-02T13:35:28.479020"
+  }
+]

@@ -16,6 +16,7 @@ from PIL import Image, ImageEnhance, ImageFilter
 import pytesseract
 
 from app.config import settings
+from app.utils.template_cache import get_cached_template_metadata, cache_template_metadata
 
 logger = logging.getLogger(__name__)
 
@@ -182,7 +183,7 @@ class AdvancedPlaceholderService:
     @staticmethod
     def detect_all_placeholders(template_path: str) -> Dict[str, Dict]:
         """
-        Detect all placeholders in the image template.
+        Detect all placeholders in the image template with caching.
 
         Returns:
         {
@@ -191,6 +192,12 @@ class AdvancedPlaceholderService:
         }
         """
         try:
+            # Check cache first
+            cached_data = get_cached_template_metadata(template_path)
+            if cached_data and "placeholders" in cached_data and cached_data["placeholders"]:
+                logger.info(f"Using cached placeholders for {template_path}")
+                return cached_data["placeholders"]
+            
             image = AdvancedPlaceholderService._load_image(template_path)
         except Exception as exc:
             logger.error("Failed to open template '%s': %s", template_path, exc)
@@ -252,6 +259,16 @@ class AdvancedPlaceholderService:
 
         if not placeholders:
             logger.warning("No placeholders detected in template '%s'", template_path)
+        else:
+            # Cache the detected placeholders
+            existing_cache = get_cached_template_metadata(template_path) or {}
+            cache_template_metadata(
+                template_path,
+                ocr_text=existing_cache.get("ocr_text", ""),
+                placeholders=placeholders,
+                font_info=existing_cache.get("font_info", {})
+            )
+            logger.info(f"Cached {len(placeholders)} placeholders for {template_path}")
 
         return placeholders
 

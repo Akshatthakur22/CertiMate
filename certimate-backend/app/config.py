@@ -34,9 +34,6 @@ class Settings(BaseSettings):
     LOG_LEVEL: str = "INFO"
     LOG_FILE: str = "logs/certimate.log"
     
-    # Database Settings
-    DATABASE_URL: str = ""
-    
     class Config:
         env_file = ".env"
 

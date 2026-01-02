@@ -75,7 +75,8 @@ async def validate_mapping(request: ValidateMappingRequest):
         logger.info(f"Mapping config: {request.mapping.dict()}")
         
         # Read CSV
-        df = CSVService.read_csv(csv_path)
+        data = CSVService.read_csv(csv_path)
+        columns = list(data[0].keys()) if data else []
         
         # Validate columns exist
         validation_results = {
@@ -85,18 +86,18 @@ async def validate_mapping(request: ValidateMappingRequest):
         }
         
         # Validate name column (required)
-        if request.mapping.name not in df.columns:
+        if request.mapping.name not in columns:
             validation_results["name"] = {
                 "valid": False,
                 "error": f"Column '{request.mapping.name}' not found in CSV",
-                "details": f"Available columns: {df.columns.tolist()}"
+                "details": f"Available columns: {columns}"
             }
             raise HTTPException(
                 status_code=400,
                 detail={
                     "error": "Missing column",
                     "details": f"Column '{request.mapping.name}' not found in CSV",
-                    "available_columns": df.columns.tolist(),
+                    "available_columns": columns,
                     "validation": validation_results
                 }
             )
@@ -105,7 +106,7 @@ async def validate_mapping(request: ValidateMappingRequest):
         
         # Validate role column (optional)
         if request.mapping.role:
-            if request.mapping.role not in df.columns:
+            if request.mapping.role not in columns:
                 validation_results["role"] = {
                     "valid": False,
                     "error": f"Column '{request.mapping.role}' not found in CSV"
@@ -115,7 +116,7 @@ async def validate_mapping(request: ValidateMappingRequest):
         
         # Validate date column (optional)
         if request.mapping.date:
-            if request.mapping.date not in df.columns:
+            if request.mapping.date not in columns:
                 validation_results["date"] = {
                     "valid": False,
                     "error": f"Column '{request.mapping.date}' not found in CSV"
@@ -125,8 +126,8 @@ async def validate_mapping(request: ValidateMappingRequest):
         
         # Get first row data for preview
         preview_data = {}
-        if len(df) > 0:
-            first_row = df.iloc[0]
+        if len(data) > 0:
+            first_row = data[0]
             preview_data = {
                 "name": str(first_row.get(request.mapping.name, "")),
                 "role": str(first_row.get(request.mapping.role, "")) if request.mapping.role else "",
@@ -141,9 +142,9 @@ async def validate_mapping(request: ValidateMappingRequest):
             "validation": validation_results,
             "preview_data": preview_data,
             "csv_stats": {
-                "total_rows": len(df),
-                "total_columns": len(df.columns),
-                "columns": df.columns.tolist()
+                "total_rows": len(data),
+                "total_columns": len(columns),
+                "columns": columns
             }
         }
         
@@ -210,27 +211,30 @@ async def generate_preview(request: PreviewRequest):
         logger.info(f"Generating preview certificate with mapping: {request.mapping.dict()}")
         
         # Read CSV and get preview row data
-        df = CSVService.read_csv(csv_path)
+        data = CSVService.read_csv(csv_path)
         
         # Validate row index
-        if request.row_index >= len(df):
+        if request.row_index >= len(data):
             raise HTTPException(
                 status_code=400,
-                detail=f"Row index {request.row_index} out of range. CSV has {len(df)} rows."
+                detail=f"Row index {request.row_index} out of range. CSV has {len(data)} rows."
             )
         
         # Get data from specified row
-        row_data = df.iloc[request.row_index]
+        row_data = data[request.row_index]
+        
+        # Get available columns
+        columns = list(data[0].keys()) if data else []
         
         # Extract values based on mapping
         name = str(row_data.get(request.mapping.name, ""))
-        role = str(row_data.get(request.mapping.role, "")) if request.mapping.role and request.mapping.role in df.columns else ""
-        date = str(row_data.get(request.mapping.date, "")) if request.mapping.date and request.mapping.date in df.columns else ""
+        role = str(row_data.get(request.mapping.role, "")) if request.mapping.role and request.mapping.role in columns else ""
+        date = str(row_data.get(request.mapping.date, "")) if request.mapping.date and request.mapping.date in columns else ""
         
         # Auto-detect event column if role is not mapped
         if not role:
             event_columns = ['event', 'Event', 'EVENT', 'course', 'Course', 'COURSE', 'program', 'Program', 'PROGRAM']
-            for col in df.columns:
+            for col in columns:
                 if col in event_columns:
                     role = str(row_data.get(col, ""))
                     logger.info(f"Auto-detected event column: {col} with value: {role}")
@@ -245,13 +249,13 @@ async def generate_preview(request: PreviewRequest):
         # Prepare case-insensitive column lookup for dynamic placeholders
         normalized_columns = {
             AdvancedPlaceholderService._normalize_key(col): col
-            for col in df.columns
+            for col in columns
         }
 
         # Row dictionary for logging/response
         row_dict = {
-            col: str(row_data.get(col, "")) if isinstance(row_data, dict) else str(row_data[col])
-            for col in df.columns
+            col: str(row_data.get(col, "")) if isinstance(row_data, dict) else ""
+            for col in columns
         }
         
         logger.info(f"Preview data - Name: {name}, Role: {role}, Date: {date}")
@@ -288,7 +292,7 @@ async def generate_preview(request: PreviewRequest):
                 logger.info(
                     "No matching CSV column for placeholder %s (available columns: %s)",
                     placeholder_name,
-                    list(df.columns)
+                    columns
                 )
                 continue
 
@@ -374,24 +378,24 @@ async def analyze_csv():
         logger.info(f"Analyzing CSV: {csv_path}")
         
         # Read CSV
-        df = CSVService.read_csv(csv_path)
+        data = CSVService.read_csv(csv_path)
         
         # Get sample data (first 3 rows)
-        sample_data = []
-        for idx in range(min(3, len(df))):
-            row = df.iloc[idx]
-            sample_data.append(row.to_dict())
+        sample_data = data[:3] if len(data) >= 3 else data
         
-        logger.info(f"CSV analysis complete. Found {len(df.columns)} columns and {len(df)} rows")
+        # Get columns from first row keys
+        columns = list(data[0].keys()) if data else []
+        
+        logger.info(f"CSV analysis complete. Found {len(columns)} columns and {len(data)} rows")
         
         return {
             "success": True,
             "message": "CSV analyzed successfully",
             "csv_stats": {
                 "filename": latest["csv"]["filename"],
-                "total_rows": len(df),
-                "total_columns": len(df.columns),
-                "columns": df.columns.tolist()
+                "total_rows": len(data),
+                "total_columns": len(columns),
+                "columns": columns
             },
             "sample_data": sample_data
         }

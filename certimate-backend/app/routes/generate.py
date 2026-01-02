@@ -9,19 +9,18 @@ from app.services.csv_service import CSVService
 from app.services.placeholder_advanced import AdvancedPlaceholderService
 from app.services.pdf_service import PDFService
 from app.services.zip_service import ZIPService
+from app.services.streaming_zip import create_streaming_zip_response, create_streaming_zip_from_directory
 from app.config import settings
 from app.utils.logger import CSVAuditLogger
 from app.utils.metadata import UploadMetadata
 from app.services.job_service import JobService
 from app.models.schemas import CertificateGenerateRequest, CertificateResponse, CertificateStatus, JobResponse, JobStatus
+from app.models.optimized_responses import create_job_response
 
 logger = logging.getLogger(__name__)
 audit_logger = CSVAuditLogger()
 
 router = APIRouter(prefix="/generate", tags=["generate"])
-
-# Simple in-memory job store (in production, use Redis or database)
-job_store: dict = {}
 
 
 class LegacyGenerateRequest(BaseModel):
@@ -58,7 +57,7 @@ async def generate_preview(request: LegacyGenerateRequest):
         if not os.path.exists(request.template_path):
             raise HTTPException(status_code=404, detail=f"Template not found: {request.template_path}")
         
-        # Detect ALL placeholders in template
+        # Detect ALL placeholders in template (will use cache if available)
         logger.info(f"Detecting all placeholders for template: {request.template_path}")
         placeholders = AdvancedPlaceholderService.detect_all_placeholders(request.template_path)
         logger.info(f"Found placeholders: {list(placeholders.keys())}")
@@ -123,16 +122,23 @@ async def generate_preview(request: LegacyGenerateRequest):
             result_image.save(output_path, "PNG")
             generated_files.append(output_path)
         
-        # Create a zip file with all preview certificates
-        zip_path = os.path.join(preview_dir, "preview_certificates.zip")
-        ZIPService.create_zip(generated_files, zip_path)
+        # Create a streaming ZIP file with all preview certificates
+        zip_response = await create_streaming_zip_from_directory(
+            directory_path=preview_dir,
+            filename="preview_certificates.zip",
+            pattern="*.png"
+        )
         
         return {
-            "message": "Preview certificates generated successfully",
+            "success": True,
             "num_certificates": len(sample_rows),
             "placeholders_found": list(placeholders.keys()),
             "sample_data": sample_rows[:1],  # Show first row as example
-            "preview_zip": zip_path
+            "preview_zip": {
+                "available": True,
+                "download_url": f"/api/generate/download/preview/preview",
+                "filename": "preview_certificates.zip"
+            }
         }
         
     except HTTPException:
@@ -195,11 +201,12 @@ async def generate_batch(
             placeholder_text
         )
         
-        return {
-            "message": "Batch generation started",
-            "job_id": job_id,
-            "status": "queued"
-        }
+        return create_job_response(
+            job_id=job_id,
+            status="queued",
+            total_items=total_items,
+            message="Batch generation started"
+        )
         
     except HTTPException:
         raise
@@ -216,6 +223,15 @@ async def get_generation_status(job_id: str):
     status = JobService.get_job_status(job_id)
     if not status:
         raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+
+    # Backfill download info for completed jobs so the frontend can offer downloads
+    if status.get("status") in ["completed", "completed_with_errors"] and not status.get("download_url"):
+        download_url = f"/api/generate/download/{job_id}"
+        filename = f"certificates_{job_id}.zip"
+        status["download_url"] = download_url
+        status["download_filename"] = filename
+        status["download_available"] = True
+        JobService.set_download_info(job_id, download_url, filename, status.get("output_dir"))
         
     return status
 
@@ -306,9 +322,82 @@ async def get_failure_log():
         raise HTTPException(status_code=500, detail=f"Error retrieving failure log: {str(e)}")
 
 
+@router.get("/download/{job_id}")
+async def download_certificates(job_id: str):
+    """
+    Download generated certificates as streaming ZIP
+    """
+    try:
+        # Get job status
+        job_status = JobService.get_job_status(job_id)
+        if not job_status:
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        
+        if job_status["status"] not in ["completed", "completed_with_errors"]:
+            raise HTTPException(status_code=400, detail=f"Job {job_id} is not completed yet")
+        
+        # Get certificate directory
+        cert_dir = os.path.join(settings.UPLOAD_DIR, "certificates", job_id)
+        if not os.path.exists(cert_dir):
+            raise HTTPException(status_code=404, detail="Certificate directory not found")
+        
+        # Create streaming ZIP response
+        zip_response = await create_streaming_zip_from_directory(
+            directory_path=cert_dir,
+            filename=f"certificates_{job_id}.zip",
+            pattern="*.png"
+        )
+        
+        # Return streaming response
+        return StreamingResponse(
+            zip_response.stream_generator(),
+            headers=zip_response.get_response_headers()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading certificates for job {job_id}: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading certificates: {str(e)}")
+
+
+@router.get("/download/preview/{job_id}")
+async def download_preview_certificates(job_id: str):
+    """
+    Download preview certificates as streaming ZIP
+    """
+    try:
+        # Preview directory (job_id is ignored for preview, all previews in same dir)
+        preview_dir = os.path.join(settings.UPLOAD_DIR, "preview")
+        if not os.path.exists(preview_dir):
+            raise HTTPException(status_code=404, detail="Preview directory not found")
+        
+        # Create streaming ZIP response
+        zip_response = await create_streaming_zip_from_directory(
+            directory_path=preview_dir,
+            filename="preview_certificates.zip",
+            pattern="*.png"
+        )
+        
+        # Return streaming response
+        return StreamingResponse(
+            zip_response.stream_generator(),
+            headers=zip_response.get_response_headers()
+        )
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading preview certificates: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading preview certificates: {str(e)}")
+
+
 @router.get("/download/{filename}")
-async def download_certificates(filename: str):
-    """Download generated certificate bundle."""
+async def download_legacy_certificates(filename: str):
+    """
+    Legacy download endpoint for backward compatibility
+    Downloads generated certificate bundle (non-streaming)
+    """
     try:
         if not filename.endswith(".zip"):
             raise HTTPException(status_code=400, detail="Invalid file type")

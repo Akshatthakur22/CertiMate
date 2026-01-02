@@ -1,0 +1,7 @@
+[
+  {
+    "item_id": null,
+    "error": "There is no current event loop in thread 'ThreadPoolExecutor-0_0'.",
+    "timestamp": "2026-01-02T13:27:39.229825"
+  }
+]

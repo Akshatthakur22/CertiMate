@@ -4,9 +4,10 @@ import os
 import aiofiles
 import logging
 from app.config import settings
-from app.utils.fileutils import sanitize_filename
+from app.utils.fileutils import sanitize_filename, validate_file_extension, get_file_extension
 from app.utils.metadata import UploadMetadata
 from app.models.schemas import FileUploadResponse
+from app.models.optimized_responses import create_file_upload_response
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/upload", tags=["upload"])
@@ -20,13 +21,13 @@ async def upload_template(file: UploadFile = File(...)):
     """
     try:
         # Validate file extension - allow PDF and common image formats
-        file_ext = os.path.splitext(file.filename)[1].lower()
         allowed_template_extensions = [".pdf", ".png", ".jpg", ".jpeg"]
         
-        if file_ext not in allowed_template_extensions:
+        if not validate_file_extension(file.filename, allowed_template_extensions):
+            ext_list = ", ".join(allowed_template_extensions)
             raise HTTPException(
                 status_code=400,
-                detail=f"Template file type {file_ext} not allowed. Allowed types: {allowed_template_extensions}"
+                detail=f"Template file type not allowed. Allowed types: {ext_list}"
             )
         
         # Sanitize filename to prevent directory traversal and special characters
@@ -34,7 +35,8 @@ async def upload_template(file: UploadFile = File(...)):
         
         # Create templates directory if it doesn't exist
         template_dir = os.path.join(settings.UPLOAD_DIR, "templates")
-        os.makedirs(template_dir, exist_ok=True)
+        from app.utils.fileutils import ensure_directory
+        ensure_directory(template_dir)
         
         # Save file
         file_path = os.path.join(template_dir, safe_filename)
@@ -47,14 +49,15 @@ async def upload_template(file: UploadFile = File(...)):
         metadata.record_template_upload(file_path, safe_filename)
         
         # Get file size
-        file_size = os.path.getsize(file_path)
+        from app.utils.fileutils import get_file_size
+        file_size = get_file_size(file_path)
         
-        return FileUploadResponse(
-            message="Template uploaded successfully",
+        return create_file_upload_response(
             filename=safe_filename,
             file_path=file_path,
             file_size=file_size,
-            file_type=file_ext
+            file_type=get_file_extension(file_path),
+            message="Template uploaded successfully"
         )
         
     except HTTPException:
@@ -74,8 +77,7 @@ async def upload_csv(file: UploadFile = File(...)):
     """
     try:
         # Validate file extension
-        file_ext = os.path.splitext(file.filename)[1].lower()
-        if file_ext != ".csv":
+        if not validate_file_extension(file.filename, [".csv"]):
             raise HTTPException(
                 status_code=400,
                 detail="Only CSV files are allowed"
@@ -86,7 +88,8 @@ async def upload_csv(file: UploadFile = File(...)):
         
         # Create CSV directory if it doesn't exist
         csv_dir = os.path.join(settings.UPLOAD_DIR, "csv")
-        os.makedirs(csv_dir, exist_ok=True)
+        from app.utils.fileutils import ensure_directory
+        ensure_directory(csv_dir)
         
         # Save file
         file_path = os.path.join(csv_dir, safe_filename)
@@ -98,11 +101,13 @@ async def upload_csv(file: UploadFile = File(...)):
         metadata = UploadMetadata()
         metadata.record_csv_upload(file_path, safe_filename)
         
-        return {
-            "message": "CSV file uploaded successfully",
-            "filename": safe_filename,
-            "file_path": file_path
-        }
+        return create_file_upload_response(
+            filename=safe_filename,
+            file_path=file_path,
+            file_size=os.path.getsize(file_path),
+            file_type="csv",
+            message="CSV file uploaded successfully"
+        )
         
     except HTTPException:
         raise
@@ -113,43 +118,6 @@ async def upload_csv(file: UploadFile = File(...)):
         )
 
 
-@router.post("/")
-async def upload_file_legacy(file: UploadFile = File(...)):
-    """
-    Legacy upload endpoint for backward compatibility
-    Upload a file for processing
-    """
-    try:
-        # Validate file extension
-        file_ext = os.path.splitext(file.filename)[1].lower()
-        if file_ext not in settings.ALLOWED_EXTENSIONS:
-            raise HTTPException(
-                status_code=400,
-                detail=f"File type {file_ext} not allowed. Allowed types: {settings.ALLOWED_EXTENSIONS}"
-            )
-        
-        # Create upload directory if it doesn't exist
-        os.makedirs(settings.UPLOAD_DIR, exist_ok=True)
-        
-        # Save file
-        file_path = os.path.join(settings.UPLOAD_DIR, file.filename)
-        async with aiofiles.open(file_path, "wb") as f:
-            content = await file.read()
-            await f.write(content)
-        
-        return {
-            "message": "File uploaded successfully",
-            "filename": file.filename,
-            "file_path": file_path
-        }
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Error uploading file: {str(e)}"
-        )
 
 
 @router.get("/latest")
@@ -174,7 +142,7 @@ async def get_latest_uploads():
             logger.warning("CSV file from metadata no longer exists")
         
         return {
-            "message": "Latest uploads retrieved successfully",
+            "success": True,
             "template": latest["template"],
             "csv": latest["csv"],
             "ready": latest["template"] is not None and latest["csv"] is not None

@@ -1,4 +1,4 @@
-import pandas as pd
+import csv
 from typing import List, Dict
 import logging
 
@@ -9,31 +9,32 @@ class CSVService:
     """Service for processing CSV files"""
     
     @staticmethod
-    def read_csv(file_path: str) -> pd.DataFrame:
+    def read_csv(file_path: str) -> List[Dict]:
         """
-        Read CSV file and return DataFrame
+        Read CSV file and return list of dictionaries
         Handles common CSV issues like different delimiters and encoding
         """
         try:
             # Try reading with different encodings
             encodings = ['utf-8', 'latin-1', 'iso-8859-1']
-            df = None
+            data = None
             
             for encoding in encodings:
                 try:
-                    df = pd.read_csv(file_path, encoding=encoding)
+                    with open(file_path, 'r', encoding=encoding, newline='') as f:
+                        reader = csv.DictReader(f)
+                        data = list(reader)
+                        # Strip whitespace from keys and values
+                        data = [{k.strip(): v.strip() if v else v for k, v in row.items()} for row in data]
                     logger.info(f"Successfully read CSV file: {file_path} with encoding: {encoding}")
                     break
                 except UnicodeDecodeError:
                     continue
             
-            if df is None:
+            if data is None:
                 raise ValueError("Could not read CSV file with any encoding")
             
-            # Strip whitespace from column names
-            df.columns = df.columns.str.strip()
-            
-            return df
+            return data
             
         except Exception as e:
             logger.error(f"Error reading CSV file: {e}")
@@ -47,7 +48,10 @@ class CSVService:
         """
         try:
             # Read the CSV file
-            df = CSVService.read_csv(file_path)
+            data = CSVService.read_csv(file_path)
+            
+            if not data:
+                return []
             
             # Auto-detect name column if not specified
             if name_column is None:
@@ -55,24 +59,25 @@ class CSVService:
                 name_variations = ['name', 'Name', 'NAME', 'full_name', 'Full Name', 
                                  'fullname', 'participant', 'Participant', 'student', 'Student']
                 
+                # Get column names from first row
+                columns = list(data[0].keys()) if data else []
+                
                 name_column = None
-                for col in df.columns:
+                for col in columns:
                     if col in name_variations:
                         name_column = col
                         break
                 
                 # If not found, use first column as fallback
-                if name_column is None:
-                    name_column = df.columns[0]
+                if name_column is None and columns:
+                    name_column = columns[0]
                     logger.warning(f"No standard name column found, using first column: {name_column}")
             
-            # Validate that the column exists
-            if name_column not in df.columns:
-                raise ValueError(f"Column '{name_column}' not found in CSV. Available columns: {df.columns.tolist()}")
-            
-            # Extract names and drop NaN values
-            names = df[name_column].dropna().astype(str).str.strip()
-            names = names[names != ''].tolist()
+            # Extract names and drop empty values
+            names = []
+            for row in data:
+                if name_column in row and row[name_column] and row[name_column].strip():
+                    names.append(row[name_column].strip())
             
             logger.info(f"Extracted {len(names)} names from CSV")
             return names
@@ -88,25 +93,22 @@ class CSVService:
         Each dictionary represents a row with column names as keys
         """
         try:
-            df = CSVService.read_csv(file_path)
-            return CSVService.get_records(df)
+            return CSVService.read_csv(file_path)
         except Exception as e:
             logger.error(f"Error getting all data from CSV: {e}")
             raise
     
     @staticmethod
-    def get_records(df: pd.DataFrame) -> List[Dict]:
+    def validate_columns(data: List[Dict], required_columns: List[str]) -> bool:
         """
-        Convert DataFrame to list of dictionaries
+        Validate that data contains required columns
         """
-        return df.to_dict('records')
-    
-    @staticmethod
-    def validate_columns(df: pd.DataFrame, required_columns: List[str]) -> bool:
-        """
-        Validate that DataFrame contains required columns
-        """
-        missing_columns = set(required_columns) - set(df.columns)
+        if not data:
+            logger.error("No data to validate")
+            return False
+        
+        columns = set(data[0].keys()) if data else set()
+        missing_columns = set(required_columns) - columns
         if missing_columns:
             logger.error(f"Missing required columns: {missing_columns}")
             return False

@@ -1,52 +1,39 @@
 from fastapi import APIRouter
 from datetime import datetime
 from app.models.schemas import HealthResponse, ServiceStatus
+from app.models.optimized_responses import create_health_response
 
 router = APIRouter(prefix="/health", tags=["health"])
 
 
-@router.get("/", response_model=HealthResponse)
+@router.get("/")
 async def health_check():
     """
     Health check endpoint
     """
-    return HealthResponse(
-        status=ServiceStatus.HEALTHY,
-        timestamp=datetime.utcnow(),
-        service="certimate-api",
-        version="1.0.0",
-        checks={
-            "database": "healthy",
-            "storage": "healthy",
-            "queue": "healthy"
-        }
+    return create_health_response(
+        status="healthy",
+        timestamp=datetime.utcnow().isoformat()
     )
 
 
-@router.get("/ready", response_model=HealthResponse)
+@router.get("/ready")
 async def readiness_check():
     """
     Readiness check endpoint
     """
-    # TODO: Add actual checks for required services/dependencies
-    return HealthResponse(
-        status=ServiceStatus.HEALTHY,
-        timestamp=datetime.utcnow(),
-        service="certimate-api",
-        checks={
-            "dependencies": "ready",
-            "external_apis": "ready"
-        }
+    return create_health_response(
+        status="ready",
+        timestamp=datetime.utcnow().isoformat()
     )
 
 
-@router.get("/live", response_model=HealthResponse)
+@router.get("/live")
 async def liveness_check():
     """
     Liveness check endpoint
     """
-    return HealthResponse(
-        status=ServiceStatus.HEALTHY,
-        timestamp=datetime.utcnow(),
-        service="certimate-api"
+    return create_health_response(
+        status="healthy",
+        timestamp=datetime.utcnow().isoformat()
     )

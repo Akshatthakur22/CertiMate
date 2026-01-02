@@ -2,7 +2,7 @@ import os
 import hashlib
 import shutil
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, List
 import logging
 
 logger = logging.getLogger(__name__)
@@ -71,19 +71,45 @@ def get_file_extension(file_path: str) -> str:
     return Path(file_path).suffix.lower()
 
 
-def is_valid_file(file_path: str, allowed_extensions: list) -> bool:
+def validate_file_extension(filename: str, allowed_extensions: List[str]) -> bool:
     """
     Check if file has allowed extension
     
     Args:
-        file_path: Path to the file
+        filename: Original filename
         allowed_extensions: List of allowed extensions (e.g., ['.pdf', '.png'])
         
     Returns:
         True if file extension is allowed, False otherwise
     """
-    extension = get_file_extension(file_path)
+    extension = get_file_extension(filename)
     return extension in allowed_extensions
+
+
+def validate_file_extension_and_size(filename: str, allowed_extensions: List[str], max_size: int = None) -> tuple[bool, str]:
+    """
+    Validate file extension and optionally size
+    
+    Args:
+        filename: Original filename
+        allowed_extensions: List of allowed extensions
+        max_size: Maximum file size in bytes (optional)
+        
+    Returns:
+        Tuple of (is_valid, error_message)
+    """
+    # Check extension
+    if not validate_file_extension(filename, allowed_extensions):
+        ext_list = ", ".join(allowed_extensions)
+        return False, f"File type not allowed. Allowed types: {ext_list}"
+    
+    # Check size if provided
+    if max_size is not None:
+        file_ext = get_file_extension(filename)
+        if file_ext not in allowed_extensions:
+            return False, f"File type {file_ext} not allowed. Allowed types: {allowed_extensions}"
+    
+    return True, ""
 
 
 def sanitize_filename(filename: str) -> str:

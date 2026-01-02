@@ -122,3 +122,25 @@ class JobService:
         errors = cls.get_job_errors(job_id)
         errors.append(error)
         cls._save_errors(job_id, errors)
+
+    @classmethod
+    def set_download_info(
+        cls,
+        job_id: str,
+        download_url: str,
+        filename: str,
+        output_dir: str = None
+    ):
+        """Persist download details on the job status for client polling."""
+        status = cls.get_job_status(job_id)
+        if not status:
+            return
+
+        status["download_url"] = download_url
+        status["download_filename"] = filename
+        status["download_available"] = True
+
+        if output_dir:
+            status["output_dir"] = output_dir
+
+        cls._save_status(job_id, status)

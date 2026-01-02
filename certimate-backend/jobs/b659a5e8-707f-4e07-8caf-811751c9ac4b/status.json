@@ -1,0 +1,19 @@
+{
+  "job_id": "b659a5e8-707f-4e07-8caf-811751c9ac4b",
+  "status": "completed",
+  "created_at": "2026-01-02T14:23:50.747639",
+  "updated_at": "2026-01-02T14:23:51.286467",
+  "total_items": 7,
+  "processed_items": 7,
+  "successful_items": 7,
+  "failed_items": 0,
+  "metadata": {
+    "template": "certificate_template.png",
+    "csv": "students.csv",
+    "parallel": true
+  },
+  "download_url": "/api/generate/download/b659a5e8-707f-4e07-8caf-811751c9ac4b",
+  "download_filename": "certificates_b659a5e8-707f-4e07-8caf-811751c9ac4b.zip",
+  "download_available": true,
+  "output_dir": "uploads/certificates/b659a5e8-707f-4e07-8caf-811751c9ac4b"
+}
