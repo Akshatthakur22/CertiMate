@@ -322,10 +322,17 @@ async def generate_preview(request: PreviewRequest):
                 logger.warning(f"No bbox found for placeholder: {placeholder_name}")
         
         # Convert image to base64
-        buffer = BytesIO()
-        result_image.save(buffer, format="PNG")
-        image_bytes = buffer.getvalue()
-        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+        try:
+            logger.info(f"Converting image to base64 (size: {result_image.size})")
+            buffer = BytesIO()
+            result_image.save(buffer, format="PNG")
+            image_bytes = buffer.getvalue()
+            logger.info(f"Image buffer size: {len(image_bytes)} bytes")
+            image_base64 = base64.b64encode(image_bytes).decode('utf-8')
+            logger.info(f"Base64 encoded size: {len(image_base64)} bytes")
+        except Exception as e:
+            logger.error(f"Failed to convert image to base64: {e}", exc_info=True)
+            raise
         
         logger.info("Preview certificate generated successfully")
         
@@ -339,7 +346,7 @@ async def generate_preview(request: PreviewRequest):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error generating preview: {e}")
+        logger.error(f"Error generating preview: {e}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail={

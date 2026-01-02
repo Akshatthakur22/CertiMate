@@ -233,11 +233,23 @@ export async function generatePreview(
   mapping: MappingConfig,
   rowIndex: number = 0
 ): Promise<PreviewResponse> {
-  const response = await api.post<PreviewResponse>(
-    endpoints.generatePreview,
-    { mapping, row_index: rowIndex }
-  );
-  return response.data;
+  try {
+    console.log("🎯 Starting preview generation...", { mapping, rowIndex });
+    const response = await api.post<PreviewResponse>(
+      endpoints.generatePreview,
+      { mapping, row_index: rowIndex },
+      { timeout: 300000 } // 5 minutes for preview (image processing can be slow)
+    );
+    console.log("✅ Preview response received:", response.data);
+    return response.data;
+  } catch (error: any) {
+    console.error("❌ Preview generation error:", error.message);
+    if (error.response) {
+      console.error("Response status:", error.response.status);
+      console.error("Response data:", error.response.data);
+    }
+    throw error;
+  }
 }
 
 /**
