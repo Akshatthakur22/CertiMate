@@ -9,6 +9,7 @@ Returns structured coordinate data for clean text replacement.
 
 import json
 import logging
+import os
 import re
 from typing import Dict, List, Optional
 
@@ -23,13 +24,20 @@ logger = logging.getLogger(__name__)
 # Configure tesseract
 pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
 
-# Check if tesseract is available
+# Check if tesseract is available and if fallback mode is forced
+USE_FALLBACK = os.getenv("USE_FALLBACK_PLACEHOLDERS", "false").lower() == "true"
 TESSERACT_AVAILABLE = True
-try:
-    pytesseract.get_tesseract_version()
-except Exception as e:
+
+if USE_FALLBACK:
     TESSERACT_AVAILABLE = False
-    logger.warning(f"Tesseract not available: {e}. Placeholder detection will use fallback method.")
+    logger.info("🔧 Fallback placeholder mode enabled via USE_FALLBACK_PLACEHOLDERS env var")
+else:
+    try:
+        pytesseract.get_tesseract_version()
+        logger.info("✅ Tesseract OCR available and ready")
+    except Exception as e:
+        TESSERACT_AVAILABLE = False
+        logger.warning(f"⚠️ Tesseract not available: {e}. Using fallback placeholder detection.")
 
 # STRICT placeholder rule (double braces required)
 PLACEHOLDER_REGEX = re.compile(r"\{\{\s*([A-Za-z0-9_\- ]+?)\s*\}\}")
