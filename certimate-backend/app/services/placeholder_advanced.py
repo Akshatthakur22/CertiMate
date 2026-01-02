@@ -284,13 +284,24 @@ class AdvancedPlaceholderService:
           "EVENT": {...}
         }
         """
-        # If tesseract is not available, use fallback
+        # PRIORITY 1: Check for manually defined placeholders first
+        placeholder_file = template_path.rsplit('.', 1)[0] + '_placeholders.json'
+        if os.path.exists(placeholder_file):
+            try:
+                with open(placeholder_file, 'r') as f:
+                    data = json.load(f)
+                logger.info(f"✅ Using manually defined placeholders from {placeholder_file}")
+                return data.get("placeholders", {})
+            except Exception as e:
+                logger.warning(f"⚠️ Failed to load manual placeholders: {e}")
+        
+        # PRIORITY 2: If tesseract is not available, use fallback
         if not TESSERACT_AVAILABLE:
             logger.warning("Tesseract not available, using fallback placeholder detection")
             return AdvancedPlaceholderService._detect_fallback_placeholders(template_path)
         
+        # PRIORITY 3: Check cache
         try:
-            # Check cache first
             cached_data = get_cached_template_metadata(template_path)
             if cached_data and "placeholders" in cached_data and cached_data["placeholders"]:
                 logger.info(f"Using cached placeholders for {template_path}")

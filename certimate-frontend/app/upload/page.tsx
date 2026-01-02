@@ -115,7 +115,8 @@ export default function UploadPage() {
       sessionStorage.setItem("templatePath", result.file_path);
       sessionStorage.setItem("templateFilename", result.filename);
       
-      router.push("/mapping");
+      // Navigate to placeholder marking page
+      router.push("/mark-placeholders");
     } catch (error: any) {
       console.error("Upload error:", error);
       

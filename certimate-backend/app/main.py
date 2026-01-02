@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.exceptions import RequestValidationError, HTTPException
 from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.middleware.gzip import GZipMiddleware
-from app.routes import upload, generate, health, send, mapping
+from app.routes import upload, generate, health, send, mapping, placeholders
 from app.routes import health_endpoints
 from app.config import settings
 from app.utils.logger import setup_logging
@@ -58,6 +58,7 @@ def create_app() -> FastAPI:
     app.include_router(generate.router, prefix="/api")
     app.include_router(send.router, prefix="/api")
     app.include_router(mapping.router, prefix="/api")
+    app.include_router(placeholders.router, prefix="/api")
     app.include_router(health.router, prefix="/api")
     app.include_router(health_endpoints.router, prefix="/api")
 
