@@ -23,6 +23,14 @@ logger = logging.getLogger(__name__)
 # Configure tesseract
 pytesseract.pytesseract.tesseract_cmd = settings.TESSERACT_CMD
 
+# Check if tesseract is available
+TESSERACT_AVAILABLE = True
+try:
+    pytesseract.get_tesseract_version()
+except Exception as e:
+    TESSERACT_AVAILABLE = False
+    logger.warning(f"Tesseract not available: {e}. Placeholder detection will use fallback method.")
+
 # STRICT placeholder rule (double braces required)
 PLACEHOLDER_REGEX = re.compile(r"\{\{\s*([A-Za-z0-9_\- ]+?)\s*\}\}")
 MIN_CONFIDENCE = 60
@@ -178,6 +186,83 @@ class AdvancedPlaceholderService:
             return ""
         return cleaned.upper()
 
+    @staticmethod
+    def _detect_fallback_placeholders(template_path: str) -> Dict[str, Dict]:
+        """
+        Fallback placeholder detection when tesseract is unavailable.
+        Returns generic placeholders based on common field names.
+        """
+        logger.info(f"Using fallback placeholder detection for {template_path}")
+        
+        try:
+            image = AdvancedPlaceholderService._load_image(template_path)
+        except Exception as exc:
+            logger.error("Failed to open template '%s': %s", template_path, exc)
+            return {}
+        
+        # Return generic placeholders positioned for typical certificate layout
+        img_width, img_height = image.size
+        
+        placeholders = {
+            "NAME": {
+                "left": int(img_width * 0.25),
+                "top": int(img_height * 0.4),
+                "width": int(img_width * 0.5),
+                "height": int(img_height * 0.1),
+                "confidence": 50,
+                "text": "{{NAME}}",
+                "raw_key": "NAME",
+                "normalized_key": "NAME",
+                "csv_key": "NAME",
+                "lookup_key": "name",
+                "bbox": {
+                    "left": int(img_width * 0.25),
+                    "top": int(img_height * 0.4),
+                    "width": int(img_width * 0.5),
+                    "height": int(img_height * 0.1),
+                }
+            },
+            "ROLE": {
+                "left": int(img_width * 0.25),
+                "top": int(img_height * 0.55),
+                "width": int(img_width * 0.5),
+                "height": int(img_height * 0.08),
+                "confidence": 50,
+                "text": "{{ROLE}}",
+                "raw_key": "ROLE",
+                "normalized_key": "ROLE",
+                "csv_key": "ROLE",
+                "lookup_key": "role",
+                "bbox": {
+                    "left": int(img_width * 0.25),
+                    "top": int(img_height * 0.55),
+                    "width": int(img_width * 0.5),
+                    "height": int(img_height * 0.08),
+                }
+            },
+            "DATE": {
+                "left": int(img_width * 0.6),
+                "top": int(img_height * 0.75),
+                "width": int(img_width * 0.3),
+                "height": int(img_height * 0.08),
+                "confidence": 50,
+                "text": "{{DATE}}",
+                "raw_key": "DATE",
+                "normalized_key": "DATE",
+                "csv_key": "DATE",
+                "lookup_key": "date",
+                "bbox": {
+                    "left": int(img_width * 0.6),
+                    "top": int(img_height * 0.75),
+                    "width": int(img_width * 0.3),
+                    "height": int(img_height * 0.08),
+                }
+            }
+        }
+        
+        logger.warning(f"Fallback: Using generic placeholders for {template_path}. Consider installing tesseract for better accuracy.")
+        return placeholders
+
     # ---------- Public API ----------
 
     @staticmethod
@@ -191,6 +276,11 @@ class AdvancedPlaceholderService:
           "EVENT": {...}
         }
         """
+        # If tesseract is not available, use fallback
+        if not TESSERACT_AVAILABLE:
+            logger.warning("Tesseract not available, using fallback placeholder detection")
+            return AdvancedPlaceholderService._detect_fallback_placeholders(template_path)
+        
         try:
             # Check cache first
             cached_data = get_cached_template_metadata(template_path)
@@ -201,7 +291,8 @@ class AdvancedPlaceholderService:
             image = AdvancedPlaceholderService._load_image(template_path)
         except Exception as exc:
             logger.error("Failed to open template '%s': %s", template_path, exc)
-            return {}
+            # Fall back to generic placeholders if image can't be opened
+            return AdvancedPlaceholderService._detect_fallback_placeholders(template_path)
 
         placeholders: Dict[str, Dict] = {}
         psm_modes = [11, 6, 3]
