@@ -20,6 +20,8 @@ async def upload_template(file: UploadFile = File(...)):
     Saves to uploads/templates directory
     """
     try:
+        logger.info(f"📤 [TEMPLATE UPLOAD] Starting upload - Filename: {file.filename}")
+        
         # Validate file extension - allow PDF and common image formats
         allowed_template_extensions = [".pdf", ".png", ".jpg", ".jpeg"]
         
@@ -40,13 +42,18 @@ async def upload_template(file: UploadFile = File(...)):
         
         # Save file
         file_path = os.path.join(template_dir, safe_filename)
+        logger.info(f"💾 [TEMPLATE UPLOAD] Saving to: {file_path}")
+        
         async with aiofiles.open(file_path, "wb") as f:
             content = await file.read()
             await f.write(content)
         
+        logger.info(f"✅ [TEMPLATE UPLOAD] File saved successfully")
+        
         # Record metadata
         metadata = UploadMetadata()
         metadata.record_template_upload(file_path, safe_filename)
+        logger.info(f"📝 [TEMPLATE UPLOAD] Metadata recorded for {safe_filename}")
         
         # Get file size
         from app.utils.fileutils import get_file_size
@@ -76,8 +83,11 @@ async def upload_csv(file: UploadFile = File(...)):
     Saves to uploads/csv directory
     """
     try:
+        logger.info(f"📤 [CSV UPLOAD] Starting upload - Filename: {file.filename}")
+        
         # Validate file extension
         if not validate_file_extension(file.filename, [".csv"]):
+            logger.error(f"❌ [CSV UPLOAD] Invalid file type: {file.filename}")
             raise HTTPException(
                 status_code=400,
                 detail="Only CSV files are allowed"
@@ -85,6 +95,7 @@ async def upload_csv(file: UploadFile = File(...)):
         
         # Sanitize filename
         safe_filename = sanitize_filename(file.filename)
+        logger.info(f"✅ [CSV UPLOAD] Sanitized filename: {safe_filename}")
         
         # Create CSV directory if it doesn't exist
         csv_dir = os.path.join(settings.UPLOAD_DIR, "csv")
@@ -93,13 +104,21 @@ async def upload_csv(file: UploadFile = File(...)):
         
         # Save file
         file_path = os.path.join(csv_dir, safe_filename)
+        logger.info(f"💾 [CSV UPLOAD] Saving to: {file_path}")
+        
         async with aiofiles.open(file_path, "wb") as f:
             content = await file.read()
             await f.write(content)
         
+        file_size = os.path.getsize(file_path)
+        logger.info(f"✅ [CSV UPLOAD] File saved successfully - Size: {file_size} bytes")
+        
         # Record metadata
         metadata = UploadMetadata()
         metadata.record_csv_upload(file_path, safe_filename)
+        logger.info(f"📝 [CSV UPLOAD] Metadata recorded for {safe_filename}")
+        
+        logger.info(f"🎉 [CSV UPLOAD] Upload completed successfully - {safe_filename}")
         
         return create_file_upload_response(
             filename=safe_filename,
@@ -112,6 +131,7 @@ async def upload_csv(file: UploadFile = File(...)):
     except HTTPException:
         raise
     except Exception as e:
+        logger.error(f"❌ [CSV UPLOAD] Error: {str(e)}", exc_info=True)
         raise HTTPException(
             status_code=500,
             detail=f"Error uploading CSV: {str(e)}"

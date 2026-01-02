@@ -176,17 +176,24 @@ async def generate_preview(request: PreviewRequest):
         JSON response with preview image (base64) or file path
     """
     try:
+        logger.info(f"🎯 [PREVIEW] Starting preview generation")
+        logger.info(f"📋 [PREVIEW] Mapping config - Name: {request.mapping.name}, Role: {request.mapping.role}, Date: {request.mapping.date}")
+        logger.info(f"📊 [PREVIEW] Row index: {request.row_index}")
+        
         # Get latest uploads
         metadata = UploadMetadata()
         latest = metadata.get_latest_uploads()
+        logger.info(f"📁 [PREVIEW] Retrieved latest uploads from metadata")
         
         if not latest["template"]:
+            logger.error("❌ [PREVIEW] No template file found in metadata")
             raise HTTPException(
                 status_code=404,
                 detail="No template file found. Please upload a template first."
             )
         
         if not latest["csv"]:
+            logger.error("❌ [PREVIEW] No CSV file found in metadata")
             raise HTTPException(
                 status_code=404,
                 detail="No CSV file found. Please upload a CSV first."
@@ -194,27 +201,34 @@ async def generate_preview(request: PreviewRequest):
         
         template_path = latest["template"]["file_path"]
         csv_path = latest["csv"]["file_path"]
+        logger.info(f"✅ [PREVIEW] Template path: {template_path}")
+        logger.info(f"✅ [PREVIEW] CSV path: {csv_path}")
         
         # Validate files exist
         if not os.path.exists(template_path):
+            logger.error(f"❌ [PREVIEW] Template file does not exist: {template_path}")
             raise HTTPException(
                 status_code=404,
                 detail=f"Template file not found: {template_path}"
             )
         
         if not os.path.exists(csv_path):
+            logger.error(f"❌ [PREVIEW] CSV file does not exist: {csv_path}")
             raise HTTPException(
                 status_code=404,
                 detail=f"CSV file not found: {csv_path}"
             )
         
-        logger.info(f"Generating preview certificate with mapping: {request.mapping.dict()}")
+        logger.info(f"✅ [PREVIEW] Both files exist and are accessible")
+        logger.info(f"📖 [PREVIEW] Reading CSV file: {csv_path}")
         
         # Read CSV and get preview row data
         data = CSVService.read_csv(csv_path)
+        logger.info(f"✅ [PREVIEW] CSV read successfully - Total rows: {len(data)}")
         
         # Validate row index
         if request.row_index >= len(data):
+            logger.error(f"❌ [PREVIEW] Row index {request.row_index} out of range (CSV has {len(data)} rows)")
             raise HTTPException(
                 status_code=400,
                 detail=f"Row index {request.row_index} out of range. CSV has {len(data)} rows."
@@ -222,14 +236,17 @@ async def generate_preview(request: PreviewRequest):
         
         # Get data from specified row
         row_data = data[request.row_index]
+        logger.info(f"✅ [PREVIEW] Using row {request.row_index} for preview")
         
         # Get available columns
         columns = list(data[0].keys()) if data else []
+        logger.info(f"📊 [PREVIEW] Available columns: {columns}")
         
         # Extract values based on mapping
         name = str(row_data.get(request.mapping.name, ""))
         role = str(row_data.get(request.mapping.role, "")) if request.mapping.role and request.mapping.role in columns else ""
         date = str(row_data.get(request.mapping.date, "")) if request.mapping.date and request.mapping.date in columns else ""
+        logger.info(f"📝 [PREVIEW] Extracted data - Name: '{name}', Role: '{role}', Date: '{date}'")
         
         # Auto-detect event column if role is not mapped
         if not role:
@@ -241,6 +258,7 @@ async def generate_preview(request: PreviewRequest):
                     break
         
         if not name:
+            logger.error(f"❌ [PREVIEW] Name field is empty in row {request.row_index}")
             raise HTTPException(
                 status_code=400,
                 detail="Name field is empty in the selected row"
@@ -258,29 +276,32 @@ async def generate_preview(request: PreviewRequest):
             for col in columns
         }
         
-        logger.info(f"Preview data - Name: {name}, Role: {role}, Date: {date}")
-        
-        # Detect ALL placeholders in template
-        logger.info(f"Detecting all placeholders for template: {template_path}")
+        logger.info(f"🔍 [PREVIEW] Starting placeholder detection for template: {template_path}")
         placeholders = AdvancedPlaceholderService.detect_all_placeholders(template_path)
-        logger.info(f"Found placeholders: {list(placeholders.keys())}")
+        logger.info(f"✅ [PREVIEW] Placeholder detection complete - Found {len(placeholders)} placeholders: {list(placeholders.keys())}")
         
         # Debug placeholder details
         for ph_name, ph_info in placeholders.items():
             logger.info(f"Placeholder {ph_name}: bbox={ph_info.get('bbox')}, text='{ph_info.get('text')}', confidence={ph_info.get('confidence')}")
         
         # Load template image
+        logger.info(f"🖼️ [PREVIEW] Loading template image: {template_path}")
         if template_path.lower().endswith('.pdf'):
+            logger.info(f"📄 [PREVIEW] Template is PDF, converting to image...")
             template_images = PDFService.pdf_to_images(template_path)
             template_image = template_images[0]
+            logger.info(f"✅ [PREVIEW] PDF converted successfully")
         else:
             from PIL import Image
             template_image = Image.open(template_path)
+            logger.info(f"✅ [PREVIEW] Image loaded successfully - Size: {template_image.size}")
         
         # Start with template image
         result_image = template_image.copy()
+        logger.info(f"🎨 [PREVIEW] Starting text rendering on template...")
         
         # Render ALL placeholders with mapped data
+        rendered_count = 0
         for placeholder_name, placeholder_info in placeholders.items():
             csv_column = normalized_columns.get(placeholder_name)
 
@@ -307,7 +328,6 @@ async def generate_preview(request: PreviewRequest):
 
             # Get placeholder bbox
             bbox = placeholder_info.get('bbox', {})
-            logger.info(f"Rendering {placeholder_name}: bbox={bbox}, data='{value}'")
             if bbox:
                 # Render text on placeholder position
                 result_image = PDFService.render_name_on_image(
@@ -317,24 +337,27 @@ async def generate_preview(request: PreviewRequest):
                     center=True,
                     placeholder_hint=placeholder_info.get('raw_key') or placeholder_name
                 )
-                logger.info(f"Successfully rendered {placeholder_name} -> {csv_column}: {value}")
+                rendered_count += 1
+                logger.info(f"✅ [PREVIEW] Rendered {placeholder_name} -> {csv_column}: '{value}'")
             else:
-                logger.warning(f"No bbox found for placeholder: {placeholder_name}")
+                logger.warning(f"⚠️ [PREVIEW] No bbox found for placeholder: {placeholder_name}")
+        
+        logger.info(f"🎨 [PREVIEW] Rendering complete - Total placeholders rendered: {rendered_count}/{len(placeholders)}")
         
         # Convert image to base64
         try:
-            logger.info(f"Converting image to base64 (size: {result_image.size})")
+            logger.info(f"🔄 [PREVIEW] Converting image to base64 (size: {result_image.size})")
             buffer = BytesIO()
             result_image.save(buffer, format="PNG")
             image_bytes = buffer.getvalue()
-            logger.info(f"Image buffer size: {len(image_bytes)} bytes")
+            logger.info(f"✅ [PREVIEW] Image buffer created - Size: {len(image_bytes)} bytes ({len(image_bytes)/1024:.2f} KB)")
             image_base64 = base64.b64encode(image_bytes).decode('utf-8')
-            logger.info(f"Base64 encoded size: {len(image_base64)} bytes")
+            logger.info(f"✅ [PREVIEW] Base64 encoding complete - Size: {len(image_base64)} bytes ({len(image_base64)/1024:.2f} KB)")
         except Exception as e:
-            logger.error(f"Failed to convert image to base64: {e}", exc_info=True)
+            logger.error(f"❌ [PREVIEW] Failed to convert image to base64: {e}", exc_info=True)
             raise
         
-        logger.info("Preview certificate generated successfully")
+        logger.info("🎉 [PREVIEW] Preview certificate generated successfully!")
         
         return {
             "success": True,
