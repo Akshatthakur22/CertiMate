@@ -45,14 +45,27 @@ export default function SendPageContent() {
 
   // Google Login
   const login = useGoogleLogin({
-    flow: "implicit",
-    onSuccess: (tokenResponse) => {
-      setGoogleToken(tokenResponse.access_token);
-      setIsAuthenticated(true);
-      toast.success("Successfully signed in to Google!");
+    onSuccess: async (codeResponse: any) => {
+      console.log("✅ Google OAuth response received:", codeResponse);
+      try {
+        // Exchange code for token on backend
+        const response = await axios.post('/api/auth/google-token', {
+          code: codeResponse.code || codeResponse.access_token,
+        });
+        
+        const { access_token } = response.data;
+        console.log("✅ Access token obtained:", access_token?.substring(0, 20) + "...");
+        
+        setGoogleToken(access_token);
+        setIsAuthenticated(true);
+        toast.success("✅ Successfully signed in to Google!");
+      } catch (error) {
+        console.error("❌ Token exchange error:", error);
+        toast.error("Failed to exchange token. Please try again.");
+      }
     },
-    onError: (error) => {
-      console.error("Login error:", error);
+    onError: (error: any) => {
+      console.error("❌ Login error:", error);
       toast.error("Failed to sign in to Google. Please try again.");
     },
     scope: "https://www.googleapis.com/auth/gmail.send https://www.googleapis.com/auth/userinfo.email",
