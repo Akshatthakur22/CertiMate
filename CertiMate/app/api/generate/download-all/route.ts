@@ -20,9 +20,26 @@ export async function POST(request: NextRequest) {
     const zip = new JSZip();
 
     // Add all certificates to archive
+    const isVercel = process.env.VERCEL === '1';
+    
     for (let i = 0; i < certificatePaths.length; i++) {
       const certPath = certificatePaths[i];
-      const fullPath = path.join(process.cwd(), 'public', certPath);
+      
+      // Normalize path: remove leading slash for path.join
+      const normalizedPath = certPath.startsWith('/') ? certPath.slice(1) : certPath;
+      
+      // Build correct full path based on environment
+      let fullPath: string;
+      if (certPath.startsWith('/tmp')) {
+        // Already absolute /tmp path
+        fullPath = certPath;
+      } else if (isVercel) {
+        // On Vercel, use /tmp
+        fullPath = path.join('/tmp', normalizedPath);
+      } else {
+        // Locally, use public directory
+        fullPath = path.join(process.cwd(), 'public', normalizedPath);
+      }
       
       try {
         const fileBuffer = await readFile(fullPath);
