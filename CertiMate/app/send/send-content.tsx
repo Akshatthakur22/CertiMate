@@ -48,10 +48,15 @@ export default function SendPageContent() {
     onSuccess: async (codeResponse: any) => {
       console.log("✅ Google OAuth response received:", codeResponse);
       try {
-        // Exchange code for token on backend
-        const response = await axios.post('/api/auth/google-token', {
-          code: codeResponse.code || codeResponse.access_token,
-        });
+        // Check if we got an access token directly (implicit flow) or a code (auth code flow)
+        const payload = codeResponse.access_token 
+          ? { access_token: codeResponse.access_token }
+          : { code: codeResponse.code };
+        
+        console.log("Sending payload:", payload.access_token ? "access_token" : "code");
+        
+        // Exchange code for token on backend or validate access token
+        const response = await axios.post('/api/auth/google-token', payload);
         
         const { access_token } = response.data;
         console.log("✅ Access token obtained:", access_token?.substring(0, 20) + "...");

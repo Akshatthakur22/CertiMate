@@ -31,12 +31,17 @@ export async function POST(request: NextRequest) {
     }
 
     // Exchange code for token
-    const response = await axios.post('https://oauth2.googleapis.com/token', {
-      client_id: clientId,
-      client_secret: clientSecret,
-      code,
-      grant_type: 'authorization_code',
-      redirect_uri: process.env.NEXT_PUBLIC_REDIRECT_URI || 'http://localhost:3000/api/auth/callback',
+    const params = new URLSearchParams();
+    params.append('client_id', clientId);
+    params.append('client_secret', clientSecret);
+    params.append('code', code);
+    params.append('grant_type', 'authorization_code');
+    params.append('redirect_uri', process.env.NEXT_PUBLIC_REDIRECT_URI || 'http://localhost:3000/api/auth/callback');
+
+    const response = await axios.post('https://oauth2.googleapis.com/token', params, {
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
     });
 
     const { access_token: token } = response.data;
@@ -51,8 +56,12 @@ export async function POST(request: NextRequest) {
     console.error("❌ Google token exchange error:", error);
     
     if (axios.isAxiosError(error)) {
+      console.error("❌ Google API error details:", error.response?.data);
+      const errorMsg = error.response?.data?.error_description || 
+                       error.response?.data?.error || 
+                       error.message;
       return NextResponse.json(
-        { error: error.response?.data?.error_description || error.message },
+        { error: errorMsg },
         { status: error.response?.status || 500 }
       );
     }
