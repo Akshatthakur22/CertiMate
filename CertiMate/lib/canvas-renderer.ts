@@ -76,18 +76,22 @@ export async function generateCertificate(
       throw new Error('Template imagePath is missing or undefined');
     }
 
-    // Load template image - handle both absolute paths and relative paths
+    // Load template image - handle both absolute paths (/tmp on Vercel) and relative paths
     let fullTemplatePath = template.imagePath;
+    const isVercel = process.env.VERCEL === '1';
     
-    // If path starts with /, it's already from /public
-    if (fullTemplatePath.startsWith('/')) {
-      fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
-    } else if (!fullTemplatePath.includes('public')) {
-      // If doesn't contain 'public', add it
+    if (fullTemplatePath.startsWith('/tmp')) {
+      // Already an absolute /tmp path (Vercel)
+      fullTemplatePath = fullTemplatePath;
+    } else if (isVercel) {
+      // On Vercel, convert relative path to /tmp
+      fullTemplatePath = path.join('/tmp', fullTemplatePath);
+    } else if (fullTemplatePath.startsWith('/')) {
+      // Local: path starts with /, add public
       fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
     } else {
-      // Otherwise use as-is
-      fullTemplatePath = path.join(process.cwd(), fullTemplatePath);
+      // Local: relative path, add public
+      fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
     }
 
     console.log('Loading image from:', fullTemplatePath);
@@ -108,10 +112,23 @@ export async function generateCertificate(
       }
     }
 
-    // Save certificate - handle relative path
-    const fullOutputPath = outputPath.startsWith('/') 
-      ? path.join(process.cwd(), 'public', outputPath)
-      : path.join(process.cwd(), 'public', outputPath);
+    // Save certificate - handle both absolute paths (/tmp on Vercel) and relative paths
+    const isVercel = process.env.VERCEL === '1';
+    let fullOutputPath: string;
+    
+    if (outputPath.startsWith('/tmp')) {
+      // Already an absolute /tmp path (Vercel)
+      fullOutputPath = outputPath;
+    } else if (isVercel) {
+      // On Vercel, use /tmp
+      fullOutputPath = path.join('/tmp', outputPath);
+    } else if (outputPath.startsWith('/')) {
+      // Local: starts with /, add public
+      fullOutputPath = path.join(process.cwd(), 'public', outputPath);
+    } else {
+      // Local: relative path, add public
+      fullOutputPath = path.join(process.cwd(), 'public', outputPath);
+    }
     
     const buffer = canvas.toBuffer('image/png');
     await writeFile(fullOutputPath, buffer);

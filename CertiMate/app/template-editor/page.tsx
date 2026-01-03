@@ -25,7 +25,9 @@ export default function TemplateEditorPage() {
   useEffect(() => {
     const templatePath = sessionStorage.getItem('templatePath');
     if (templatePath) {
-      setTemplateImage(templatePath);
+      // Use API endpoint to serve the file (works on Vercel)
+      const imageUrl = `/api/serve-file?path=${encodeURIComponent(templatePath)}`;
+      setTemplateImage(imageUrl);
     } else {
       toast.error('No template uploaded');
       router.push('/upload');
