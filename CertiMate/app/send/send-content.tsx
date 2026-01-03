@@ -45,6 +45,7 @@ export default function SendPageContent() {
 
   // Google Login
   const login = useGoogleLogin({
+    flow: "implicit",
     onSuccess: (tokenResponse) => {
       setGoogleToken(tokenResponse.access_token);
       setIsAuthenticated(true);
