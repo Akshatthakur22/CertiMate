@@ -3,21 +3,21 @@ import path from 'path';
 import { writeFile, mkdir } from 'fs/promises';
 import type { CertificateTemplate, TextBox } from '@/types/template';
 
+// Register font globally when module loads
+try {
+  const fontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Regular.ttf');
+  registerFont(fontPath, { family: 'Roboto' });
+  console.log('✓ Font registered successfully:', fontPath);
+} catch (error) {
+  console.error('Failed to register font:', error);
+}
+
 /**
  * Map custom fonts to system-available alternatives
  */
 function getFontFallback(fontFamily: string): string {
-  const fontMap: Record<string, string> = {
-    'Great Vibes': 'Georgia, serif',
-    'Playfair Display': 'Georgia, serif',
-    'Montserrat': 'Arial, sans-serif',
-    'Roboto': 'Arial, sans-serif',
-    'Open Sans': 'Arial, sans-serif',
-    'Lato': 'Arial, sans-serif',
-    'Poppins': 'Arial, sans-serif',
-  };
-  
-  return fontMap[fontFamily] || 'Arial, sans-serif';
+  // Always use Roboto since we registered it
+  return 'Roboto, sans-serif';
 }
 
 /**
