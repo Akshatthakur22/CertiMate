@@ -37,8 +37,20 @@ export function parseCSV(content: string): CSVData {
     }
     result.push(current.trim());
     
-    // Remove quotes from values
-    return result.map(val => val.replace(/^"(.*)"$/, '$1').trim());
+    // Remove quotes and clean text values
+    return result.map(val => {
+      // Remove surrounding quotes
+      let cleaned = val.replace(/^"(.*)"$/, '$1').trim();
+      
+      // Replace non-ASCII characters with spaces or remove them
+      // Keep only printable ASCII characters (32-126) plus common extended chars
+      cleaned = cleaned.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+      
+      // Remove any remaining control characters
+      cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
+      
+      return cleaned;
+    });
   };
 
   // Parse headers

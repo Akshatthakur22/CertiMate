@@ -21,6 +21,30 @@ function getFontFallback(fontFamily: string): string {
 }
 
 /**
+ * Clean and normalize text for rendering
+ */
+function cleanTextForRendering(text: string): string {
+  // Trim whitespace
+  let cleaned = text.trim();
+  
+  // Remove BOM and zero-width characters
+  cleaned = cleaned.replace(/[\uFEFF\u200B-\u200D\uFFFD]/g, '');
+  
+  // Remove control characters except newlines
+  cleaned = cleaned.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+  
+  // If text contains box-drawing or replacement characters, it's corrupted
+  // Try to detect if we have Unicode box characters (U+2580-U+259F range)
+  if (/[\u2580-\u259F\uFFFD]/.test(cleaned)) {
+    console.warn('Detected corrupted text with box characters:', cleaned);
+    // Return empty or placeholder if text is completely unreadable
+    return '';
+  }
+  
+  return cleaned;
+}
+
+/**
  * Renders text in a text box with proper alignment and word wrapping
  */
 function renderTextInBox(
@@ -142,13 +166,15 @@ export async function generateCertificate(
     for (const box of template.textBoxes) {
       let value = certificateData[box.key] || '';
       if (value) {
-        // Ensure proper UTF-8 encoding and trim any BOM or special characters
-        value = value.toString().trim();
-        // Remove any null bytes or control characters except newlines
-        value = value.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+        // Clean and normalize text
+        value = cleanTextForRendering(value);
         
-        console.log(`Rendering text for ${box.key}:`, value, 'Font:', box.fontFamily);
-        renderTextInBox(ctx, value, box);
+        if (value) {  // Only render if we have valid text after cleaning
+          console.log(`Rendering text for ${box.key}:`, value, 'Font:', box.fontFamily);
+          renderTextInBox(ctx, value, box);
+        } else {
+          console.warn(`Empty or corrupted value for ${box.key}, skipping`);
+        }
       }
     }
 
