@@ -1,0 +1,67 @@
+# macOS
+.DS_Store
+
+# Node/Next.js
+node_modules/
+.next/
+out/
+.vscode/
+.idea/
+.vercel/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnp.*
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*$py.class
+.Python
+.mypy_cache/
+.pytest_cache/
+.venv/
+venv/
+ENV/
+env/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+.eggs/
+*.egg
+
+# Environment files
+.env
+.env.*
+*.local
+
+# Project generated assets (runtime artifacts)
+certimate-backend/uploads/certificates/
+certimate-backend/uploads/csv/
+certimate-backend/uploads/preview/
+certimate-backend/uploads/metadata.json
+certimate-backend/logs/*.log
+certimate-backend/logs/*.csv
+
+# Coverage/Reports
+coverage/
+coverage.*
+*.coverage
+*.coverage.*
+htmlcov/
+
+# OS/Editor
+*.swp
+*.swo
+*~
+Thumbs.db
+
+# TypeScript
+*.tsbuildinfo
+next-env.d.ts
