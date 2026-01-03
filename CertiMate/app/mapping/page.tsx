@@ -87,7 +87,10 @@ export default function MappingPage() {
       });
 
       if (response.data.success && response.data.preview_image) {
-        setPreviewImage(response.data.preview_image);
+        // Convert path to API endpoint for serving
+        const imagePath = response.data.preview_image;
+        const imageUrl = `/api/serve-file?path=${encodeURIComponent(imagePath)}`;
+        setPreviewImage(imageUrl);
         
         // Store mappings for generation page
         sessionStorage.setItem('csvMappings', JSON.stringify(mappings));
