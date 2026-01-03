@@ -6,8 +6,11 @@ export async function saveFile(file: File, directory: string): Promise<string> {
   const bytes = await file.arrayBuffer();
   const buffer = Buffer.from(bytes);
 
-  // Create directory if it doesn't exist
-  const uploadDir = path.join(process.cwd(), 'public', directory);
+  // Use /tmp directory on Vercel (serverless), local public directory otherwise
+  const isVercel = process.env.VERCEL === '1';
+  const baseDir = isVercel ? '/tmp' : path.join(process.cwd(), 'public');
+  const uploadDir = path.join(baseDir, directory);
+  
   if (!existsSync(uploadDir)) {
     await mkdir(uploadDir, { recursive: true });
   }
@@ -20,18 +23,24 @@ export async function saveFile(file: File, directory: string): Promise<string> {
   // Save file
   await writeFile(filepath, buffer);
 
-  // Return public path
-  return `${directory}/${filename}`;
+  // Return the path (absolute for Vercel, relative for local)
+  return isVercel ? filepath : `${directory}/${filename}`;
 }
 
 export async function readFileContent(filepath: string): Promise<string> {
-  const fullPath = path.join(process.cwd(), 'public', filepath);
+  // Handle both absolute paths (Vercel /tmp) and relative paths (local)
+  const fullPath = filepath.startsWith('/tmp') 
+    ? filepath 
+    : path.join(process.cwd(), 'public', filepath);
   const content = await readFile(fullPath, 'utf-8');
   return content;
 }
 
 export async function readFileBuffer(filepath: string): Promise<Buffer> {
-  const fullPath = path.join(process.cwd(), 'public', filepath);
+  // Handle both absolute paths (Vercel /tmp) and relative paths (local)
+  const fullPath = filepath.startsWith('/tmp') 
+    ? filepath 
+    : path.join(process.cwd(), 'public', filepath);
   const content = await readFile(fullPath);
   return content;
 }
