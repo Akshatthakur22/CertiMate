@@ -20,6 +20,19 @@ const nextConfig: NextConfig = {
     optimizePackageImports: ["lucide-react", "framer-motion"],
   },
 
+  /* Webpack Configuration */
+  webpack: (config, { isServer }) => {
+    if (isServer) {
+      // Copy font files to serverless function output
+      config.externals = config.externals || [];
+      // Ensure canvas binary dependencies are handled correctly
+      if (!Array.isArray(config.externals)) {
+        config.externals = [config.externals];
+      }
+    }
+    return config;
+  },
+
   /* Security Headers */
   async headers() {
     return [

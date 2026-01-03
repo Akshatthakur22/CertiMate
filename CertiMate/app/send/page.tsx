@@ -31,6 +31,17 @@ export default function SendPage() {
   const [sendProgress, setSendProgress] = useState<number>(0);
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [hasGoogleClientId, setHasGoogleClientId] = useState(true);
+
+  // Check if Google Client ID is configured
+  useEffect(() => {
+    const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID;
+    if (!clientId) {
+      console.error("❌ NEXT_PUBLIC_GOOGLE_CLIENT_ID is not configured");
+      setHasGoogleClientId(false);
+      toast.error("Google OAuth is not configured. Please contact the administrator.");
+    }
+  }, []);
 
   // Google Login
   const login = useGoogleLogin({
