@@ -134,21 +134,31 @@ export default function TemplateEditorPage() {
       return;
     }
 
-    // Get the actual file path from sessionStorage (not the API URL)
-    const actualPath = sessionStorage.getItem('templatePath');
-    
-    const template: CertificateTemplate = {
-      id: `template_${Date.now()}`,
-      name: sessionStorage.getItem('templateFilename') || 'Untitled Template',
-      imagePath: actualPath || templateImage!,
-      imageWidth: imageRef.current?.naturalWidth || 1200,
-      imageHeight: imageRef.current?.naturalHeight || 800,
-      textBoxes,
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-    };
-
     try {
+      // Convert image to base64 for persistence across serverless functions
+      let imageBase64 = '';
+      if (imageRef.current) {
+        const canvas = document.createElement('canvas');
+        canvas.width = imageRef.current.naturalWidth;
+        canvas.height = imageRef.current.naturalHeight;
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+          ctx.drawImage(imageRef.current, 0, 0);
+          imageBase64 = canvas.toDataURL('image/png');
+        }
+      }
+      
+      const template: CertificateTemplate = {
+        id: `template_${Date.now()}`,
+        name: sessionStorage.getItem('templateFilename') || 'Untitled Template',
+        imagePath: imageBase64 || templateImage!,
+        imageWidth: imageRef.current?.naturalWidth || 1200,
+        imageHeight: imageRef.current?.naturalHeight || 800,
+        textBoxes,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
       sessionStorage.setItem('certificateTemplate', JSON.stringify(template));
       toast.success('Template saved successfully!');
       router.push('/mapping');

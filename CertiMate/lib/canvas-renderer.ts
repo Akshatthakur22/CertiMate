@@ -83,26 +83,35 @@ export async function generateCertificate(
       templatePath = decodeURIComponent(urlParams.get('path') || '');
     }
 
-    // Load template image - handle both absolute paths (/tmp on Vercel) and relative paths
-    let fullTemplatePath = templatePath;
-    const isVercel = process.env.VERCEL === '1';
+    // Load template image - handle base64, absolute paths (/tmp on Vercel), and relative paths
+    let image;
     
-    if (fullTemplatePath.startsWith('/tmp')) {
-      // Already an absolute /tmp path (Vercel)
-      fullTemplatePath = fullTemplatePath;
-    } else if (isVercel) {
-      // On Vercel, convert relative path to /tmp
-      fullTemplatePath = path.join('/tmp', fullTemplatePath);
-    } else if (fullTemplatePath.startsWith('/')) {
-      // Local: path starts with /, add public
-      fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
+    if (templatePath.startsWith('data:image/')) {
+      // Base64 data URL - load directly
+      console.log('Loading image from base64 data URL');
+      image = await loadImage(templatePath);
     } else {
-      // Local: relative path, add public
-      fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
-    }
+      // File path - resolve and load
+      let fullTemplatePath = templatePath;
+      const isVercel = process.env.VERCEL === '1';
+      
+      if (fullTemplatePath.startsWith('/tmp')) {
+        // Already an absolute /tmp path (Vercel)
+        fullTemplatePath = fullTemplatePath;
+      } else if (isVercel) {
+        // On Vercel, convert relative path to /tmp
+        fullTemplatePath = path.join('/tmp', fullTemplatePath);
+      } else if (fullTemplatePath.startsWith('/')) {
+        // Local: path starts with /, add public
+        fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
+      } else {
+        // Local: relative path, add public
+        fullTemplatePath = path.join(process.cwd(), 'public', fullTemplatePath);
+      }
 
-    console.log('Loading image from:', fullTemplatePath);
-    const image = await loadImage(fullTemplatePath);
+      console.log('Loading image from:', fullTemplatePath);
+      image = await loadImage(fullTemplatePath);
+    }
 
     // Create canvas with template dimensions
     const canvas = createCanvas(template.imageWidth, template.imageHeight);
