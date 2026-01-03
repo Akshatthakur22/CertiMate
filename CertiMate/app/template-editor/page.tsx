@@ -134,10 +134,13 @@ export default function TemplateEditorPage() {
       return;
     }
 
+    // Get the actual file path from sessionStorage (not the API URL)
+    const actualPath = sessionStorage.getItem('templatePath');
+    
     const template: CertificateTemplate = {
       id: `template_${Date.now()}`,
       name: sessionStorage.getItem('templateFilename') || 'Untitled Template',
-      imagePath: templateImage!,
+      imagePath: actualPath || templateImage!,
       imageWidth: imageRef.current?.naturalWidth || 1200,
       imageHeight: imageRef.current?.naturalHeight || 800,
       textBoxes,

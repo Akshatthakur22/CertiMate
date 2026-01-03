@@ -76,8 +76,15 @@ export async function generateCertificate(
       throw new Error('Template imagePath is missing or undefined');
     }
 
+    // Extract actual file path if imagePath is an API URL
+    let templatePath = template.imagePath;
+    if (templatePath.includes('/api/serve-file?path=')) {
+      const urlParams = new URLSearchParams(templatePath.split('?')[1]);
+      templatePath = decodeURIComponent(urlParams.get('path') || '');
+    }
+
     // Load template image - handle both absolute paths (/tmp on Vercel) and relative paths
-    let fullTemplatePath = template.imagePath;
+    let fullTemplatePath = templatePath;
     const isVercel = process.env.VERCEL === '1';
     
     if (fullTemplatePath.startsWith('/tmp')) {
