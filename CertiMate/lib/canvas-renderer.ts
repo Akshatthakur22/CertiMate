@@ -130,6 +130,7 @@ export async function generateCertificate(
 
     // Save certificate - handle both absolute paths (/tmp on Vercel) and relative paths
     let fullOutputPath: string;
+    const isVercel = process.env.VERCEL === '1';
     
     if (outputPath.startsWith('/tmp')) {
       // Already an absolute /tmp path (Vercel)
