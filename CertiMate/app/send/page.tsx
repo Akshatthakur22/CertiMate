@@ -12,6 +12,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLayout } from "@/components/layout/page-layout";
 import { Skeleton, SkeletonText } from "@/components/ui/skeleton";
 
+// Disable static generation for this page since it requires Google OAuth at runtime
+export const dynamic = "force-dynamic";
+
 export default function SendPage() {
   const router = useRouter();
   const [emailTemplate, setEmailTemplate] = useState(
