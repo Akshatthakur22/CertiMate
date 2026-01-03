@@ -4,6 +4,23 @@ import { writeFile, mkdir } from 'fs/promises';
 import type { CertificateTemplate, TextBox } from '@/types/template';
 
 /**
+ * Map custom fonts to system-available alternatives
+ */
+function getFontFallback(fontFamily: string): string {
+  const fontMap: Record<string, string> = {
+    'Great Vibes': 'Georgia, serif',
+    'Playfair Display': 'Georgia, serif',
+    'Montserrat': 'Arial, sans-serif',
+    'Roboto': 'Arial, sans-serif',
+    'Open Sans': 'Arial, sans-serif',
+    'Lato': 'Arial, sans-serif',
+    'Poppins': 'Arial, sans-serif',
+  };
+  
+  return fontMap[fontFamily] || 'Arial, sans-serif';
+}
+
+/**
  * Renders text in a text box with proper alignment and word wrapping
  */
 function renderTextInBox(
@@ -13,8 +30,9 @@ function renderTextInBox(
 ) {
   const { x, y, width, height, fontSize, fontColor, fontWeight, fontFamily, textAlign } = box;
 
-  // Set font properties
-  ctx.font = `${fontWeight} ${fontSize}px ${fontFamily}`;
+  // Use fallback fonts for better compatibility on serverless environments
+  const fallbackFonts = getFontFallback(fontFamily);
+  ctx.font = `${fontWeight} ${fontSize}px ${fallbackFonts}`;
   ctx.fillStyle = fontColor;
   ctx.textBaseline = 'middle';
 
@@ -124,6 +142,7 @@ export async function generateCertificate(
     for (const box of template.textBoxes) {
       const value = certificateData[box.key] || '';
       if (value) {
+        console.log(`Rendering text for ${box.key}:`, value, 'Font:', box.fontFamily);
         renderTextInBox(ctx, value, box);
       }
     }
