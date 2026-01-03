@@ -18,14 +18,17 @@ export async function GET(request: NextRequest) {
     const isVercel = process.env.VERCEL === '1';
     let fullPath: string;
 
+    // Avoid losing the base path when filepath starts with '/'
+    const normalizedPath = filepath.startsWith('/') ? filepath.slice(1) : filepath;
+
     if (filepath.startsWith('/tmp')) {
       fullPath = filepath;
     } else if (isVercel) {
       // On Vercel, files are in /tmp
-      fullPath = path.join('/tmp', filepath);
+      fullPath = path.join('/tmp', normalizedPath);
     } else {
       // Locally, files are in public directory
-      fullPath = path.join(process.cwd(), 'public', filepath);
+      fullPath = path.join(process.cwd(), 'public', normalizedPath);
     }
 
     const fileBuffer = await readFile(fullPath);

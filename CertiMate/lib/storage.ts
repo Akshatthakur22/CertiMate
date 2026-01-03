@@ -9,7 +9,8 @@ export async function saveFile(file: File, directory: string): Promise<string> {
   // Use /tmp directory on Vercel (serverless), local public directory otherwise
   const isVercel = process.env.VERCEL === '1';
   const baseDir = isVercel ? '/tmp' : path.join(process.cwd(), 'public');
-  const uploadDir = path.join(baseDir, directory);
+  const normalizedDir = directory.startsWith('/') ? directory.slice(1) : directory;
+  const uploadDir = path.join(baseDir, normalizedDir);
   
   if (!existsSync(uploadDir)) {
     await mkdir(uploadDir, { recursive: true });
@@ -29,18 +30,20 @@ export async function saveFile(file: File, directory: string): Promise<string> {
 
 export async function readFileContent(filepath: string): Promise<string> {
   // Handle both absolute paths (Vercel /tmp) and relative paths (local)
+  const normalizedPath = filepath.startsWith('/') ? filepath.slice(1) : filepath;
   const fullPath = filepath.startsWith('/tmp') 
     ? filepath 
-    : path.join(process.cwd(), 'public', filepath);
+    : path.join(process.cwd(), 'public', normalizedPath);
   const content = await readFile(fullPath, 'utf-8');
   return content;
 }
 
 export async function readFileBuffer(filepath: string): Promise<Buffer> {
   // Handle both absolute paths (Vercel /tmp) and relative paths (local)
+  const normalizedPath = filepath.startsWith('/') ? filepath.slice(1) : filepath;
   const fullPath = filepath.startsWith('/tmp') 
     ? filepath 
-    : path.join(process.cwd(), 'public', filepath);
+    : path.join(process.cwd(), 'public', normalizedPath);
   const content = await readFile(fullPath);
   return content;
 }

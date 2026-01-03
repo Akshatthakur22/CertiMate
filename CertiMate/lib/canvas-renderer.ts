@@ -155,19 +155,18 @@ export async function generateCertificate(
     // Save certificate - handle both absolute paths (/tmp on Vercel) and relative paths
     let fullOutputPath: string;
     const isVercel = process.env.VERCEL === '1';
+    // Remove leading slash so path.join doesn't drop the base directory
+    const normalizedOutputPath = outputPath.startsWith('/') ? outputPath.slice(1) : outputPath;
     
     if (outputPath.startsWith('/tmp')) {
       // Already an absolute /tmp path (Vercel)
       fullOutputPath = outputPath;
     } else if (isVercel) {
       // On Vercel, use /tmp
-      fullOutputPath = path.join('/tmp', outputPath);
-    } else if (outputPath.startsWith('/')) {
-      // Local: starts with /, add public
-      fullOutputPath = path.join(process.cwd(), 'public', outputPath);
+      fullOutputPath = path.join('/tmp', normalizedOutputPath);
     } else {
-      // Local: relative path, add public
-      fullOutputPath = path.join(process.cwd(), 'public', outputPath);
+      // Local: use public directory
+      fullOutputPath = path.join(process.cwd(), 'public', normalizedOutputPath);
     }
     
     // Ensure directory exists
