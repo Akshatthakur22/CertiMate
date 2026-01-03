@@ -1,6 +1,6 @@
 import { createCanvas, loadImage, registerFont, CanvasRenderingContext2D as NodeCanvasContext } from 'canvas';
 import path from 'path';
-import { writeFile } from 'fs/promises';
+import { writeFile, mkdir } from 'fs/promises';
 import type { CertificateTemplate, TextBox } from '@/types/template';
 
 /**
@@ -145,6 +145,10 @@ export async function generateCertificate(
       // Local: relative path, add public
       fullOutputPath = path.join(process.cwd(), 'public', outputPath);
     }
+    
+    // Ensure directory exists
+    const dir = path.dirname(fullOutputPath);
+    await mkdir(dir, { recursive: true });
     
     const buffer = canvas.toBuffer('image/png');
     await writeFile(fullOutputPath, buffer);
