@@ -1,23 +1,80 @@
 import { createCanvas, loadImage, registerFont, CanvasRenderingContext2D as NodeCanvasContext } from 'canvas';
 import path from 'path';
 import { writeFile, mkdir } from 'fs/promises';
+import { existsSync } from 'fs';
 import type { CertificateTemplate, TextBox } from '@/types/template';
 
-// Register font globally when module loads
-try {
-  const fontPath = path.join(process.cwd(), 'public', 'fonts', 'Roboto-Regular.ttf');
-  registerFont(fontPath, { family: 'Roboto' });
-  console.log('✓ Font registered successfully:', fontPath);
-} catch (error) {
-  console.error('Failed to register font:', error);
+// Register fonts globally when module loads
+// Try multiple paths to support different environments (local dev, Vercel, etc.)
+const fonts = [
+  { file: 'Roboto-Regular.ttf', family: 'Roboto' },
+  { file: 'Arial.ttf', family: 'Arial' },
+  { file: 'Lato-Regular.ttf', family: 'Lato' },
+];
+
+const registeredFonts = new Set<string>();
+
+for (const font of fonts) {
+  const possiblePaths = [
+    path.join(process.cwd(), 'public', 'fonts', font.file),
+    path.join(process.cwd(), '.next', 'static', 'fonts', font.file),
+    path.join(process.cwd(), 'fonts', font.file),
+    path.join(__dirname, '..', 'public', 'fonts', font.file),
+  ];
+
+  for (const fontPath of possiblePaths) {
+    try {
+      if (existsSync(fontPath)) {
+        registerFont(fontPath, { family: font.family });
+        console.log(`✓ Font registered: ${font.family} (${font.file})`);
+        registeredFonts.add(font.family);
+        break;
+      }
+    } catch (error) {
+      console.warn(`Failed to register ${font.family} at ${fontPath}:`, error);
+    }
+  }
+}
+
+if (registeredFonts.size === 0) {
+  console.warn('⚠ Could not register any custom fonts, will use system fonts as fallback');
+} else {
+  console.log(`✓ Successfully registered ${registeredFonts.size} font(s): ${Array.from(registeredFonts).join(', ')}`);
 }
 
 /**
- * Map custom fonts to system-available alternatives
+ * Map custom fonts to registered fonts with fallbacks
  */
 function getFontFallback(fontFamily: string): string {
-  // Always use Roboto since we registered it
-  return 'Roboto, sans-serif';
+  const font = fontFamily.toLowerCase().trim();
+  
+  // Map common font names to our registered fonts
+  const fontMap: Record<string, string> = {
+    // Sans-serif fonts (modern, clean)
+    'arial': registeredFonts.has('Arial') ? 'Arial' : 'sans-serif',
+    'helvetica': registeredFonts.has('Arial') ? 'Arial' : 'sans-serif',
+    'calibri': registeredFonts.has('Lato') ? 'Lato' : 'sans-serif',
+    'lato': registeredFonts.has('Lato') ? 'Lato' : 'sans-serif',
+    'roboto': registeredFonts.has('Roboto') ? 'Roboto' : 'sans-serif',
+    'open sans': registeredFonts.has('Lato') ? 'Lato' : 'sans-serif',
+    'montserrat': registeredFonts.has('Lato') ? 'Lato' : 'sans-serif',
+    
+    // Serif fonts (traditional, elegant)
+    'times new roman': 'serif',
+    'times': 'serif',
+    'georgia': 'serif',
+    'garamond': 'serif',
+    'merriweather': 'serif',
+    'playfair display': 'serif',
+  };
+  
+  // Check if we have a direct mapping
+  if (fontMap[font]) {
+    return `${fontMap[font]}, ${font.includes('serif') ? 'serif' : 'sans-serif'}`;
+  }
+  
+  // Default to Roboto with sans-serif fallback
+  return registeredFonts.has('Roboto') ? 'Roboto, sans-serif' : 'sans-serif';
 }
 
 /**
