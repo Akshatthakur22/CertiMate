@@ -2,17 +2,17 @@
 
 import dynamic from "next/dynamic";
 
-// Dynamically import the content with ssr: false to skip server-side rendering
-// This prevents GoogleOAuthProvider errors during build time
-const SendPageContent = dynamic(() => import("./send-content"), {
+// Dynamically import the wrapper that will mount the component only on client
+// This ensures GoogleOAuthProvider is available
+const SendPageWrapper = dynamic(() => import("./send-wrapper"), {
   ssr: false,
   loading: () => (
-    <div className="min-h-screen flex items-center justify-center">
-      <div className="text-center">Loading...</div>
+    <div className="min-h-screen flex items-center justify-center bg-gray-900">
+      <div className="text-center text-white">Loading page...</div>
     </div>
   ),
 });
 
 export default function SendPage() {
-  return <SendPageContent />;
+  return <SendPageWrapper />;
 }
