@@ -5,6 +5,11 @@ export interface CSVData {
 }
 
 export function parseCSV(content: string): CSVData {
+  // Remove BOM if present
+  if (content.charCodeAt(0) === 0xFEFF) {
+    content = content.slice(1);
+  }
+  
   // Handle both \n and \r\n line endings
   const lines = content.split(/\r?\n/).filter(line => line.trim());
   
@@ -12,13 +17,35 @@ export function parseCSV(content: string): CSVData {
     throw new Error('CSV file is empty');
   }
 
+  // Simple CSV parser that handles quoted fields
+  const parseLine = (line: string): string[] => {
+    const result: string[] = [];
+    let current = '';
+    let inQuotes = false;
+    
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    
+    // Remove quotes from values
+    return result.map(val => val.replace(/^"(.*)"$/, '$1').trim());
+  };
+
   // Parse headers
-  const headers = lines[0].split(',').map(h => h.trim());
+  const headers = parseLine(lines[0]);
   
   // Parse rows
-  const rows = lines.slice(1).map(line => {
-    return line.split(',').map(cell => cell.trim());
-  });
+  const rows = lines.slice(1).map(line => parseLine(line));
 
   return {
     headers,

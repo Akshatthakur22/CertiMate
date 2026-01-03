@@ -27,6 +27,16 @@ export async function POST(request: NextRequest) {
     }
 
     console.log('Received template:', JSON.stringify(certificateTemplate, null, 2));
+    
+    if (certificateData) {
+      console.log('Certificate data received:', JSON.stringify(certificateData, null, 2));
+      // Log each value with its character codes to debug encoding
+      Object.keys(certificateData).forEach(key => {
+        const value = certificateData[key];
+        console.log(`Field "${key}": "${value}" (length: ${value?.length}, chars:`, 
+          value?.split('').map((c: string) => c.charCodeAt(0)).join(','), ')');
+      });
+    }
 
     // Handle single certificate generation (from generate page)
     if (certificateData && !preview && !generateBatch) {

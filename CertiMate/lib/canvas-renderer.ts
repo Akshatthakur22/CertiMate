@@ -140,8 +140,13 @@ export async function generateCertificate(
 
     // Render each text box
     for (const box of template.textBoxes) {
-      const value = certificateData[box.key] || '';
+      let value = certificateData[box.key] || '';
       if (value) {
+        // Ensure proper UTF-8 encoding and trim any BOM or special characters
+        value = value.toString().trim();
+        // Remove any null bytes or control characters except newlines
+        value = value.replace(/[\x00-\x08\x0B-\x0C\x0E-\x1F\x7F]/g, '');
+        
         console.log(`Rendering text for ${box.key}:`, value, 'Font:', box.fontFamily);
         renderTextInBox(ctx, value, box);
       }

@@ -244,8 +244,11 @@ export default function GeneratePage() {
         ? `${metadata.participantName.replace(/[^a-z0-9]/gi, '_')}_certificate.png`
         : `certificate_${index + 1}.png`;
       
+      // Use serve-file API for Vercel compatibility
+      const downloadUrl = `/api/serve-file?path=${encodeURIComponent(certPath)}`;
+      
       // Fetch the certificate as blob to force download
-      const response = await fetch(certPath);
+      const response = await fetch(downloadUrl);
       if (!response.ok) throw new Error('Failed to fetch certificate');
       
       const blob = await response.blob();
