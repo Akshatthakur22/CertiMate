@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { UploadCloud, File, X, Check } from "lucide-react";
 import { toast } from "sonner";
 import axios from "axios";
@@ -16,8 +16,75 @@ export default function UploadPage() {
   const [file, setFile] = useState<File | null>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isTransitioning, setIsTransitioning] = useState(false);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
   const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024; // 10MB
+  const handleAutoUpload = useCallback(async (fileToUpload: File) => {
+    setIsUploading(true);
+    try {
+      // First, wake up the backend (Render free tier cold start)
+      try {
+        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/`, { 
+          method: 'GET',
+          signal: AbortSignal.timeout(10000) 
+        });
+      } catch (wakeError) {
+        console.warn("Wake-up ping failed (may still work):", wakeError);
+      }
+      
+      const formData = new FormData();
+      formData.append("file", fileToUpload);
+      
+      // Include existing sessionId if available
+      const existingSessionId = sessionStorage.getItem("sessionId");
+      if (existingSessionId) {
+        formData.append("sessionId", existingSessionId);
+      }
+      
+      const response = await axios.post("/api/upload", formData, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      const result = response.data;
+      
+      // Store sessionId from response
+      if (result.sessionId) {
+        sessionStorage.setItem("sessionId", result.sessionId);
+      }
+      
+      // Store file path in session for next page
+      sessionStorage.setItem("templatePath", result.file_path);
+      sessionStorage.setItem("templateFilename", result.filename);
+      
+      // Start the wow transition
+      setIsTransitioning(true);
+      setTimeout(() => {
+        router.push("/template-editor");
+      }, 3000);
+    } catch (error: any) {
+      console.error("Upload error:", error);
+      
+      // Better error messages for common Render issues
+      let errorMessage = "Failed to upload template.";
+      
+      if (error.code === "ERR_NETWORK" || error.code === "ERR_EMPTY_RESPONSE") {
+        errorMessage = "Server not responding. Render may be starting up (takes ~30s). Please try again in a moment.";
+      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
+        errorMessage = "Upload timed out. Server may be cold-starting. Please try again.";
+      } else {
+        errorMessage = error.response?.data?.detail || 
+                      error.response?.data?.message || 
+                      error.message || 
+                      "Failed to upload template. Please try again.";
+      }
+      
+      toast.error(errorMessage, { duration: 5000 });
+    } finally {
+      setIsUploading(false);
+    }
+  }, [router, setIsTransitioning]);
 
   const handleDragOver = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -52,8 +119,15 @@ export default function UploadPage() {
       }
 
       setFile(droppedFile);
+      
+      // Auto-upload after file drop
+      setTimeout(() => {
+        const fileToUpload = droppedFile;
+        setIsUploading(true);
+        handleAutoUpload(fileToUpload);
+      }, 100);
     }
-  }, []);
+  }, [handleAutoUpload]);
 
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const selectedFile = e.target.files?.[0];
@@ -82,8 +156,15 @@ export default function UploadPage() {
       console.log("File accepted and set");
       // allow reselecting the same file by clearing input value
       if (fileInputRef.current) fileInputRef.current.value = "";
+      
+      // Auto-upload after file selection
+      setTimeout(() => {
+        const fileToUpload = selectedFile;
+        setIsUploading(true);
+        handleAutoUpload(fileToUpload);
+      }, 100);
     }
-  }, []);
+  }, [handleAutoUpload]);
 
   const handleRemove = useCallback(() => {
     setFile(null);
@@ -91,73 +172,8 @@ export default function UploadPage() {
 
   const handleNext = useCallback(async () => {
     if (!file) return;
-
-    setIsUploading(true);
-    try {
-      // First, wake up the backend (Render free tier cold start)
-      toast.info("Connecting to server...", { duration: 2000 });
-      try {
-        await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/`, { 
-          method: 'GET',
-          signal: AbortSignal.timeout(10000) 
-        });
-      } catch (wakeError) {
-        console.warn("Wake-up ping failed (may still work):", wakeError);
-      }
-      
-      toast.info("Uploading template...");
-      const formData = new FormData();
-      formData.append("file", file);
-      
-      // Include existing sessionId if available
-      const existingSessionId = sessionStorage.getItem("sessionId");
-      if (existingSessionId) {
-        formData.append("sessionId", existingSessionId);
-      }
-      
-      const response = await axios.post("/api/upload", formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
-      const result = response.data;
-      
-      // Backend returns success if no exception is thrown
-      toast.success(result.message || "Template uploaded successfully!");
-      
-      // Store sessionId from response
-      if (result.sessionId) {
-        sessionStorage.setItem("sessionId", result.sessionId);
-      }
-      
-      // Store file path in session for next page
-      sessionStorage.setItem("templatePath", result.file_path);
-      sessionStorage.setItem("templateFilename", result.filename);
-      
-      // Navigate to template editor page
-      router.push("/template-editor");
-    } catch (error: any) {
-      console.error("Upload error:", error);
-      
-      // Better error messages for common Render issues
-      let errorMessage = "Failed to upload template.";
-      
-      if (error.code === "ERR_NETWORK" || error.code === "ERR_EMPTY_RESPONSE") {
-        errorMessage = "Server not responding. Render may be starting up (takes ~30s). Please try again in a moment.";
-      } else if (error.code === "ECONNABORTED" || error.message?.includes("timeout")) {
-        errorMessage = "Upload timed out. Server may be cold-starting. Please try again.";
-      } else {
-        errorMessage = error.response?.data?.detail || 
-                      error.response?.data?.message || 
-                      error.message || 
-                      "Failed to upload template. Please try again.";
-      }
-      
-      toast.error(errorMessage, { duration: 5000 });
-    } finally {
-      setIsUploading(false);
-    }
-  }, [file, router]);
+    await handleAutoUpload(file);
+  }, [file, handleAutoUpload]);
 
   // Generate preview URL for images
   useEffect(() => {
@@ -211,9 +227,10 @@ export default function UploadPage() {
           >
             <div className="flex items-center justify-center space-x-2 sm:space-x-3 md:space-x-4 overflow-x-auto pb-2">
               {[
-                { num: 1, label: 'Upload', active: true },
-                { num: 2, label: 'Map Data', active: false },
-                { num: 3, label: 'Generate', active: false },
+                { num: 1, label: 'Upload Template', active: true },
+                { num: 2, label: 'Design Template', active: false },
+                { num: 3, label: 'Map Data', active: false },
+                { num: 4, label: 'Generate', active: false },
               ].map((step) => (
                 <div key={step.num} className="flex items-center flex-shrink-0">
                   <div
@@ -232,7 +249,7 @@ export default function UploadPage() {
                     </div>
                     <span className="text-xs sm:text-sm mt-2 font-medium whitespace-nowrap">{step.label}</span>
                   </div>
-                  {step.num < 3 && (
+                  {step.num < 4 && (
                     <div
                       className={`h-0.5 w-4 sm:w-8 md:w-12 lg:w-16 mx-1 sm:mx-2 md:mx-3 lg:mx-4 transition-colors ${
                         step.active ? 'bg-indigo-600' : 'bg-gray-300'
@@ -343,7 +360,9 @@ export default function UploadPage() {
                       <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden">
                         <div className="h-full w-1/2 rounded-full bg-gradient-to-r from-indigo-400 via-indigo-600 to-indigo-400 animate-[pulse_1.2s_ease-in-out_infinite]" />
                       </div>
-                      <p className="text-xs text-gray-600 mt-2">Uploading… please wait</p>
+                      <p className="text-xs text-gray-600 mt-2 text-center">
+                        {isUploading ? "Processing template…" : "Preparing editor…"}
+                      </p>
                     </div>
                   )}
                 </CardContent>
@@ -356,27 +375,179 @@ export default function UploadPage() {
             </div>
           </motion.div>
 
-          {/* Actions */}
-          {file && (
+          {/* Upload completion message */}
+          {file && !isUploading && !isTransitioning && (
             <motion.div
               initial={{ opacity: 0, y: 20 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.4, duration: 0.5 }}
-              className="flex justify-end mt-6 sm:mt-8"
+              transition={{ delay: 0.2, duration: 0.3 }}
+              className="text-center mt-6"
             >
-              <BrandButton
-                variant="gradient"
-                size="lg"
-                onClick={handleNext}
-                disabled={isUploading}
-                className="w-full sm:w-auto min-h-[44px]"
-                aria-label={isUploading ? "Uploading template" : "Continue to mapping"}
-              >
-                {isUploading ? "Uploading..." : "Next: Map Data"}
-              </BrandButton>
+              <div className="inline-flex items-center gap-2 px-4 py-2 bg-green-50 border border-green-200 rounded-full">
+                <Check className="h-4 w-4 text-green-600" />
+                <span className="text-sm text-green-700 font-medium">Opening editor...</span>
+              </div>
             </motion.div>
           )}
         </div>
+        
+        {/* Wow Transition Overlay */}
+        <AnimatePresence>
+          {isTransitioning && (
+            <motion.div 
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-[9999] flex items-center justify-center bg-gradient-to-br from-white to-indigo-50"
+            >
+              <div className="text-center max-w-4xl mx-auto px-4">
+                {/* CertiMate Branding */}
+                <motion.div
+                  initial={{ opacity: 0, y: -20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.5 }}
+                  className="mb-8"
+                >
+                  <span className="font-extrabold text-3xl md:text-4xl">
+                    <span className="text-slate-900">Certi</span>
+                    <span className="text-blue-600">Mate</span>
+                  </span>
+                  <div className="mt-2 text-sm text-gray-500">Making certificate distribution effortless</div>
+                </motion.div>
+                
+                {/* Animated Background Elements */}
+                <div className="absolute inset-0 overflow-hidden pointer-events-none">
+                  {[...Array(4)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      initial={{ scale: 0, opacity: 0 }}
+                      animate={{ scale: [0, 1, 0], opacity: [0, 0.2, 0] }}
+                      transition={{ 
+                        delay: i * 0.3, 
+                        duration: 3, 
+                        repeat: Infinity, 
+                        ease: "easeInOut" 
+                      }}
+                      className="absolute w-24 h-24 rounded-full bg-gradient-to-br from-indigo-200/20 to-blue-200/20"
+                      style={{
+                        top: `${15 + (i % 2) * 40}%`,
+                        left: `${20 + (i % 2) * 30}%`,
+                      }}
+                    />
+                  ))}
+                </div>
+                
+                {/* Main Loading Animation */}
+                <motion.div
+                  initial={{ scale: 0, rotate: 0 }}
+                  animate={{ scale: 1, rotate: 360 }}
+                  transition={{ duration: 0.8, ease: "easeInOut" }}
+                  className="mb-8 relative"
+                >
+                  <div className="w-28 h-28 mx-auto relative">
+                    {/* Outer ring */}
+                    <motion.div 
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 3, repeat: Infinity, ease: "linear" }}
+                      className="absolute inset-0 rounded-full border-4 border-indigo-200"
+                    />
+                    {/* Middle ring */}
+                    <motion.div 
+                      animate={{ rotate: -360 }}
+                      transition={{ duration: 2, repeat: Infinity, ease: "linear" }}
+                      className="absolute inset-2 rounded-full border-2 border-blue-200"
+                    />
+                    {/* Center circle */}
+                    <div className="absolute inset-4 bg-gradient-to-br from-indigo-100 to-blue-100 rounded-full flex items-center justify-center shadow-lg">
+                      <motion.div
+                        animate={{ scale: [1, 1.2, 1] }}
+                        transition={{ duration: 1.5, repeat: Infinity, ease: "easeInOut" }}
+                        className="text-2xl"
+                      >
+                        ✨
+                      </motion.div>
+                    </div>
+                  </div>
+                </motion.div>
+                
+                <motion.h2 
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3, duration: 0.6 }}
+                  className="text-3xl md:text-5xl font-bold bg-gradient-to-r from-indigo-600 to-blue-600 bg-clip-text text-transparent mb-4"
+                >
+                  Preparing Your Canvas
+                </motion.h2>
+                
+                <motion.p 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5, duration: 0.6 }}
+                  className="text-lg md:text-xl text-gray-600 mb-8"
+                >
+                  Your creative workspace is almost ready...
+                </motion.p>
+                
+                {/* What's Coming Preview */}
+                <motion.div 
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7, duration: 0.6 }}
+                  className="mb-8"
+                >
+                </motion.div>
+                
+                {/* Loading Dots */}
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: 1.5, duration: 0.5 }}
+                  className="flex items-center justify-center gap-2 mb-6"
+                >
+                  <div className="flex gap-1">
+                    {[0, 1, 2].map((i) => (
+                      <motion.div
+                        key={i}
+                        animate={{ scale: [1, 1.5, 1] }}
+                        transition={{ 
+                          delay: 1.6 + i * 0.1, 
+                          duration: 0.6, 
+                          repeat: Infinity, 
+                          ease: "easeInOut" 
+                        }}
+                        className="w-3 h-3 bg-gradient-to-r from-indigo-400 to-blue-400 rounded-full"
+                      />
+                    ))}
+                  </div>
+                </motion.div>
+                
+                {/* Progress Bar */}
+                <motion.div 
+                  initial={{ width: 0 }}
+                  animate={{ width: "280px" }}
+                  transition={{ delay: 1.7, duration: 1, ease: "easeInOut" }}
+                  className="h-2 bg-gray-200 rounded-full mx-auto overflow-hidden"
+                >
+                  <motion.div 
+                    initial={{ x: -280 }}
+                    animate={{ x: 280 }}
+                    transition={{ delay: 1.7, duration: 2, repeat: Infinity, ease: "linear" }}
+                    className="h-full w-16 bg-gradient-to-r from-indigo-400 to-blue-400 rounded-full"
+                  />
+                </motion.div>
+                
+                <motion.p 
+                  initial={{ opacity: 0 }}
+                  animate={{ opacity: 1 }}
+                  transition={{ delay: 2.0, duration: 0.4 }}
+                  className="text-sm text-gray-500 mt-4"
+                >
+                  Preparing your design tools...
+                </motion.p>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
     </PageLayout>
   );

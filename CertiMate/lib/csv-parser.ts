@@ -17,37 +17,47 @@ export function parseCSV(content: string): CSVData {
     throw new Error('CSV file is empty');
   }
 
-  // Simple CSV parser that handles quoted fields
+  // Robust CSV parser that handles quoted fields and escaped quotes
   const parseLine = (line: string): string[] => {
     const result: string[] = [];
     let current = '';
     let inQuotes = false;
+    let i = 0;
     
-    for (let i = 0; i < line.length; i++) {
+    while (i < line.length) {
       const char = line[i];
       
       if (char === '"') {
-        inQuotes = !inQuotes;
+        // Handle escaped quotes ("" -> ")
+        if (inQuotes && i + 1 < line.length && line[i + 1] === '"') {
+          current += '"';
+          i++; // Skip the escaped quote
+        } else {
+          inQuotes = !inQuotes;
+        }
       } else if (char === ',' && !inQuotes) {
         result.push(current.trim());
         current = '';
       } else {
         current += char;
       }
+      i++;
     }
+    
     result.push(current.trim());
     
-    // Remove quotes and clean text values
+    // Clean values but preserve Unicode characters and proper formatting
     return result.map(val => {
-      // Remove surrounding quotes
-      let cleaned = val.replace(/^"(.*)"$/, '$1').trim();
+      let cleaned = val;
       
-      // Replace non-ASCII characters with spaces or remove them
-      // Keep only printable ASCII characters (32-126) plus common extended chars
-      cleaned = cleaned.replace(/[^\x20-\x7E\xA0-\xFF]/g, '');
+      // Remove surrounding quotes if present
+      if (cleaned.startsWith('"') && cleaned.endsWith('"')) {
+        cleaned = cleaned.slice(1, -1);
+      }
       
-      // Remove any remaining control characters
-      cleaned = cleaned.replace(/[\x00-\x1F\x7F]/g, '');
+      // Only remove actual control characters (not printable chars)
+      // Keep Unicode letters, numbers, punctuation, emojis
+      cleaned = cleaned.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '');
       
       return cleaned;
     });

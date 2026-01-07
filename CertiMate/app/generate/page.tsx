@@ -10,6 +10,7 @@ import type { CertificateTemplate } from "@/types/template";
 import { PageLayout } from "@/components/layout/page-layout";
 import { BrandButton } from "@/components/ui/brand-button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Skeleton, SkeletonCard, SkeletonText } from "@/components/ui/skeleton";
 
 interface CSVData {
   headers: string[];
@@ -41,6 +42,7 @@ export default function GeneratePage() {
   const [estimatedTimeRemaining, setEstimatedTimeRemaining] = useState<number | null>(null);
   const [showAllCertificates, setShowAllCertificates] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string>("");
+  const [isInitializing, setIsInitializing] = useState(true);
   
   const startTimeRef = useRef<number>(Date.now());
   const generationTimesRef = useRef<number[]>([]);
@@ -51,13 +53,17 @@ export default function GeneratePage() {
 
   const startGeneration = async () => {
     try {
+      // Brief initialization to show skeleton (feels more intentional)
+      await new Promise(resolve => setTimeout(resolve, 800));
+      setIsInitializing(false);
+      
       const templateStr = sessionStorage.getItem('certificateTemplate');
       const mappingsStr = sessionStorage.getItem('csvMappings');
       const csvDataStr = sessionStorage.getItem('csvData');
       const sessionId = sessionStorage.getItem('sessionId');
 
       if (!templateStr || !mappingsStr || !csvDataStr) {
-        toast.error('Missing required data. Please start over.');
+        toast.error('Session expired. Let\'s start fresh.');
         router.push('/upload');
         return;
       }
@@ -177,21 +183,21 @@ export default function GeneratePage() {
       const failedCount = metadata.filter(m => m.status === 'failed').length;
       
       if (failedCount === 0) {
-        toast.success(`Successfully generated all ${successCount} certificates!`);
+        toast.success(`🎉 All ${successCount} certificates ready to send!`);
       } else if (successCount > 0) {
-        toast.warning(`Generated ${successCount} of ${metadata.length} certificates. ${failedCount} failed.`);
+        toast.success(`✓ ${successCount} certificates ready. ${failedCount} had issues — see details below.`);
       } else {
-        toast.error(`All ${failedCount} certificates failed to generate.`);
+        toast.error(`Generation failed for all certificates. Let's troubleshoot.`);
       }
     } catch (error: any) {
       console.error('Generation error:', error);
       setStatus('failed');
       
-      let errorMsg = 'Unknown error occurred';
+      let errorMsg = 'Something unexpected happened';
       if (error.response?.status === 500) {
-        errorMsg = 'Server error - Template or CSV data may be invalid';
+        errorMsg = 'Template or data format issue — check your CSV columns match template fields';
       } else if (error.message?.includes('Network')) {
-        errorMsg = 'Network connection lost - Please check your internet';
+        errorMsg = 'Internet connection interrupted — try again when stable';
       } else if (error.response?.data?.error) {
         errorMsg = error.response.data.error;
       }
@@ -290,30 +296,60 @@ export default function GeneratePage() {
 
   return (
     <PageLayout>
-      <div className="min-h-screen bg-gradient-to-br from-white via-[#f9faff] to-[#eef1ff] pt-20 sm:pt-24 pb-8 sm:pb-12 px-4">
+      <div className="min-h-screen bg-gradient-to-br from-white via-[#f9faff] to-[#eef1ff] pt-16 sm:pt-20 pb-6 sm:pb-8 px-4">
         <div className="container mx-auto max-w-5xl">
-          {/* Header */}
+          {/* Header - Calm and reassuring */}
           <motion.div 
             initial={{ opacity: 0, y: -20 }}
             animate={{ opacity: 1, y: 0 }}
-            className="text-center mb-6 sm:mb-8"
+            className="text-center mb-5 sm:mb-6"
           >
-            <div className="inline-flex items-center gap-2 border border-indigo-100 bg-white/80 px-3 py-1 rounded-full text-sm text-indigo-600 shadow-sm backdrop-blur-md mb-3">
-              🪶 Step 4 of 4
+            <div className="inline-flex items-center gap-2 border border-indigo-100 bg-white/80 px-3 py-1 rounded-full text-sm text-indigo-600 shadow-sm backdrop-blur-md mb-2">
+              🎯 Final Step
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-extrabold leading-tight text-gray-900 mb-2 sm:mb-3">
-              {status === "generating" ? "Generating Certificates" : status === "completed" ? "Generation Complete!" : "Generation Failed"}
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-extrabold leading-tight text-gray-900 mb-2">
+              {status === "generating" ? "Creating Your Certificates" : status === "completed" ? "You're All Set!" : "Let's Fix This"}
             </h1>
-            <p className="text-base sm:text-lg text-gray-600 px-4">
-              {status === "generating" && "Please wait while we create your certificates..."}
-              {status === "completed" && "All certificates have been generated successfully!"}
-              {status === "failed" && "Something went wrong during generation"}
+            <p className="text-sm sm:text-base text-gray-600 px-4">
+              {status === "generating" && "Hang tight — we're building certificates for your participants"}
+              {status === "completed" && "Your certificates are ready to send or download"}
+              {status === "failed" && "We hit a snag, but your data is safe"}
             </p>
           </motion.div>
 
           <AnimatePresence mode="wait">
+            {/* Initial Loading - Skeleton State */}
+            {isInitializing && (
+              <motion.div
+                key="initializing"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+              >
+                <Card>
+                  <CardContent className="p-5 sm:p-6">
+                    <div className="text-center">
+                      <div className="w-16 h-16 bg-gradient-to-br from-[#4F46E5]/10 to-[#22C55E]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Loader2 className="w-8 h-8 text-[#4F46E5] animate-spin" />
+                      </div>
+                      <Skeleton className="h-7 w-56 mx-auto mb-2" />
+                      <Skeleton className="h-4 w-40 mx-auto mb-6" />
+                    </div>
+                    
+                    <div className="space-y-3">
+                      <Skeleton className="h-2.5 w-full rounded-full" />
+                      <div className="flex justify-between">
+                        <Skeleton className="h-3 w-16" />
+                        <Skeleton className="h-3 w-10" />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+            
             {/* Generating State */}
-            {status === "generating" && (
+            {!isInitializing && status === "generating" && (
               <motion.div
                 key="generating"
                 initial={{ opacity: 0, y: 20 }}
@@ -321,44 +357,27 @@ export default function GeneratePage() {
                 exit={{ opacity: 0, y: -20 }}
               >
                 <Card>
-                  <CardContent className="p-6 sm:p-8">
-                    {/* Reassurance Header */}
-                    <div className="flex items-center justify-center gap-2 mb-6 text-sm text-gray-600">
-                      <Shield className="w-4 h-4 text-[#4F46E5]" />
-                      <span className="font-medium">Generation in progress - Safe to keep this tab open</span>
-                    </div>
-                    
-                    <div className="text-center mb-8">
-                      <div className="w-20 h-20 bg-gradient-to-br from-[#4F46E5]/10 to-[#22C55E]/10 rounded-full flex items-center justify-center mx-auto mb-6">
-                        <Loader2 className="w-10 h-10 text-[#4F46E5] animate-spin" />
+                  <CardContent className="p-5 sm:p-6">
+                    <div className="text-center mb-6">
+                      <div className="w-16 h-16 bg-gradient-to-br from-[#4F46E5]/10 to-[#22C55E]/10 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <Loader2 className="w-8 h-8 text-[#4F46E5] animate-spin" />
                       </div>
-                      <h2 className="text-2xl font-bold text-gray-900 mb-2">Generating Your Certificates</h2>
+                      <h2 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">Building Your Certificates</h2>
                       
-                      {currentBatch && (
-                        <motion.p 
-                          key={currentBatch}
-                          initial={{ opacity: 0, y: -10 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          className="text-sm text-[#4F46E5] font-medium mb-2"
-                        >
-                          Currently processing: <span className="font-bold">{currentBatch}</span>
-                        </motion.p>
-                      )}
-                      
-                      <p className="text-sm text-gray-500">
-                        Certificate {generated} of {total}
-                        {estimatedTimeRemaining && (
-                          <span className="inline-flex items-center gap-1 ml-2">
-                            <Clock className="w-3 h-3" />
-                            ~{formatTime(estimatedTimeRemaining)} remaining
+                      <div className="flex items-center justify-center gap-3 text-sm text-gray-600 mb-4">
+                        <span className="font-semibold">{generated} of {total}</span>
+                        {estimatedTimeRemaining && estimatedTimeRemaining > 5 && (
+                          <span className="inline-flex items-center gap-1.5 text-[#4F46E5]">
+                            <Clock className="w-3.5 h-3.5" />
+                            ~{formatTime(estimatedTimeRemaining)}
                           </span>
                         )}
-                      </p>
+                      </div>
                     </div>
 
-                    {/* Progress Bar */}
-                    <div className="space-y-4 mb-6">
-                      <div className="h-3 bg-gray-200 rounded-full overflow-hidden">
+                    {/* Progress Bar - Clean and simple */}
+                    <div className="space-y-3">
+                      <div className="h-2.5 bg-gray-200 rounded-full overflow-hidden">
                         <motion.div
                           initial={{ width: 0 }}
                           animate={{ width: `${progress}%` }}
@@ -367,32 +386,16 @@ export default function GeneratePage() {
                         />
                       </div>
                       
-                      <div className="flex justify-between text-sm font-medium">
-                        <span className="text-gray-600">Progress</span>
-                        <span className="text-[#4F46E5]">{Math.round(progress)}%</span>
+                      <div className="flex items-center justify-center gap-2 text-sm">
+                        <span className="font-bold text-[#4F46E5]">{Math.round(progress)}%</span>
+                        <span className="text-gray-500">complete</span>
                       </div>
                     </div>
-
-                    {/* Stats Grid */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                      <div className="bg-gradient-to-br from-white via-[#f9faff] to-[#eef1ff] border border-gray-200 rounded-lg p-4 text-center">
-                        <p className="text-2xl font-bold text-[#4F46E5]">{generated}</p>
-                        <p className="text-xs text-gray-600 mt-1">Generated</p>
-                      </div>
-                      <div className="bg-gradient-to-br from-white via-[#f9faff] to-[#eef1ff] border border-gray-200 rounded-lg p-4 text-center">
-                        <p className="text-2xl font-bold text-gray-600">{total - generated}</p>
-                        <p className="text-xs text-gray-600 mt-1">Remaining</p>
-                      </div>
-                      <div className="bg-gradient-to-br from-white via-[#f9faff] to-[#eef1ff] border border-gray-200 rounded-lg p-4 text-center">
-                        <p className="text-2xl font-bold text-gray-900">{total}</p>
-                        <p className="text-xs text-gray-600 mt-1">Total</p>
-                      </div>
-                      {failed > 0 && (
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
-                          <p className="text-2xl font-bold text-red-600">{failed}</p>
-                          <p className="text-xs text-red-600 mt-1">Failed</p>
-                        </div>
-                      )}
+                    
+                    {/* Simple reassurance message */}
+                    <div className="mt-5 flex items-center justify-center gap-2 text-xs text-gray-600 bg-[#4F46E5]/5 py-2.5 px-4 rounded-lg">
+                      <Shield className="w-3.5 h-3.5 text-[#4F46E5]" />
+                      <span>Safe to keep this tab open</span>
                     </div>
                   </CardContent>
                 </Card>
@@ -408,71 +411,77 @@ export default function GeneratePage() {
                 exit={{ opacity: 0, y: -20 }}
                 className="space-y-6"
               >
-                {/* Success Card */}
+                {/* Success Card - Compact for single-screen view */}
                 <Card className="gradient-primary text-white">
-                  <CardContent className="p-6 sm:p-8">
+                  <CardContent className="p-5 sm:p-6">
                     <div className="text-center">
                       <motion.div
                         initial={{ scale: 0 }}
                         animate={{ scale: 1 }}
                         transition={{ type: "spring", duration: 0.5 }}
-                        className="w-20 h-20 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-6"
+                        className="w-16 h-16 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-4"
                       >
-                        <CheckCircle className="w-10 h-10" />
+                        <CheckCircle className="w-8 h-8" />
                       </motion.div>
-                      <h2 className="text-3xl font-bold mb-2">
-                        {failed > 0 ? 'Generation Completed with Warnings' : 'All Done!'}
+                      <h2 className="text-2xl sm:text-3xl font-bold mb-2">
+                        {failed > 0 ? `${successfulCerts.length} Certificates Ready` : 'All Certificates Ready!'}
                       </h2>
-                      <p className="text-lg opacity-90 mb-6">
+                      <p className="text-base opacity-90 mb-5">
                         {failed > 0 
-                          ? `Successfully generated ${successfulCerts.length} of ${total} certificates`
-                          : `Successfully generated all ${successfulCerts.length} certificates`
+                          ? `${successfulCerts.length} ready to send. ${failed} need review.`
+                          : `Completed in ${formatTime(Math.floor((Date.now() - startTimeRef.current) / 1000))}. Nice work!`
                         }
                       </p>
                       
-                      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
-                        <div className="bg-white/10 rounded-lg p-3 sm:p-4">
-                          <p className="text-2xl sm:text-3xl font-bold">{successfulCerts.length}</p>
-                          <p className="text-xs opacity-90 mt-1">Successful</p>
+                      {/* Simplified stats - compact */}
+                      <div className="inline-flex items-center gap-5 text-sm opacity-90">
+                        <div>
+                          <span className="text-2xl font-bold block">{successfulCerts.length}</span>
+                          <span className="text-xs">Ready to Send</span>
                         </div>
                         {failed > 0 && (
-                          <div className="bg-white/10 rounded-lg p-3 sm:p-4">
-                            <p className="text-2xl sm:text-3xl font-bold">{failed}</p>
-                            <p className="text-xs opacity-90 mt-1">Failed</p>
-                          </div>
+                          <>
+                            <div className="w-px h-10 bg-white/20"></div>
+                            <div>
+                              <span className="text-2xl font-bold block">{failed}</span>
+                              <span className="text-xs">Need Review</span>
+                            </div>
+                          </>
                         )}
-                        <div className="bg-white/10 rounded-lg p-3 sm:p-4">
-                          <p className="text-2xl sm:text-3xl font-bold">
-                            {Math.round((successfulCerts.length / total) * 100)}%
-                          </p>
-                          <p className="text-xs opacity-90 mt-1">Success Rate</p>
-                        </div>
-                        <div className="bg-white/10 rounded-lg p-3 sm:p-4">
-                          <p className="text-2xl sm:text-3xl font-bold">
-                            {formatTime(Math.floor((Date.now() - startTimeRef.current) / 1000))}
-                          </p>
-                          <p className="text-xs opacity-90 mt-1">Total Time</p>
-                        </div>
                       </div>
                     </div>
                   </CardContent>
                 </Card>
 
-                {/* Download Actions - ZIP First */}
+                {/* Download Actions - Clear primary focus */}
                 <Card>
-                  <CardContent className="p-6">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-xl font-bold text-gray-900">Download Your Certificates</h3>
-                      {total > 50 && (
-                        <span className="text-sm text-[#4F46E5] font-medium bg-[#4F46E5]/10 px-3 py-1 rounded-full">
-                          {total} certificates
-                        </span>
-                      )}
+                  <CardContent className="p-5">
+                    <div className="mb-4">
+                      <h3 className="text-lg font-bold text-gray-900 mb-1">Choose Your Next Step</h3>
+                      <p className="text-sm text-gray-600">
+                        {successfulCerts.length > 50 
+                          ? "Email recommended for large batches"
+                          : "Send via email or download manually"
+                        }
+                      </p>
                     </div>
                     
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 mb-6">
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+                      {/* Primary action: Email (recommended for most users) */}
                       <BrandButton
                         variant="gradient"
+                        size="lg"
+                        onClick={() => router.push('/send')}
+                        className="w-full"
+                        disabled={successfulCerts.length === 0}
+                      >
+                        <Mail className="w-5 h-5" />
+                        <span>Send Certificates Now</span>
+                      </BrandButton>
+                      
+                      {/* Secondary action: Download */}
+                      <BrandButton
+                        variant="secondary"
                         size="lg"
                         onClick={downloadAll}
                         disabled={isDownloadingZip || successfulCerts.length === 0}
@@ -481,118 +490,92 @@ export default function GeneratePage() {
                         {isDownloadingZip ? (
                           <>
                             <Loader2 className="w-5 h-5 animate-spin" />
-                            <span className="hidden sm:inline">Preparing ZIP...</span>
-                            <span className="sm:hidden">Preparing...</span>
+                            <span>Preparing ZIP...</span>
                           </>
                         ) : (
                           <>
                             <FileArchive className="w-5 h-5" />
-                            <span className="hidden sm:inline">Download All as ZIP</span>
-                            <span className="sm:hidden">Download ZIP</span>
+                            <span>Download All ({successfulCerts.length})</span>
                           </>
                         )}
                       </BrandButton>
-
-                      <BrandButton
-                        variant="secondary"
-                        size="lg"
-                        onClick={() => router.push('/send')}
-                        className="w-full"
-                        disabled={successfulCerts.length === 0}
-                      >
-                        <Mail className="w-5 h-5" />
-                        <span className="hidden sm:inline">Send via Email</span>
-                        <span className="sm:hidden">Email</span>
-                      </BrandButton>
                     </div>
-                    
-                    {total > 50 && (
-                      <div className="bg-[#4F46E5]/5 border border-[#4F46E5]/20 rounded-lg p-3 mb-4">
-                        <p className="text-sm text-gray-700 flex items-start gap-2">
-                          <Shield className="w-4 h-4 text-[#4F46E5] mt-0.5 flex-shrink-0" />
-                          <span>For large batches, we recommend downloading as ZIP. Individual downloads are available below.</span>
-                        </p>
-                      </div>
-                    )}
 
-                    {/* Individual Downloads - Collapsible for large batches */}
-                    <div className="border-t pt-4">
+                    {/* Individual Downloads - Collapsible to save screen space */}
+                    <div className="border-t pt-4 mt-4">
                       <button
                         onClick={() => setShowAllCertificates(!showAllCertificates)}
                         className="flex items-center justify-between w-full text-sm font-bold text-gray-900 mb-3 hover:text-[#4F46E5] transition-colors"
                       >
-                        <span>Individual Certificates ({successfulCerts.length})</span>
-                        {total > 50 ? (
-                          showAllCertificates ? (
-                            <ChevronUp className="w-4 h-4" />
-                          ) : (
-                            <ChevronDown className="w-4 h-4" />
-                          )
-                        ) : null}
+                        <span>Individual Downloads ({successfulCerts.length})</span>
+                        {showAllCertificates ? (
+                          <ChevronUp className="w-4 h-4" />
+                        ) : (
+                          <ChevronDown className="w-4 h-4" />
+                        )}
                       </button>
                       
-                      {(total <= 50 || showAllCertificates) && (
-                        <div className="max-h-80 overflow-y-auto space-y-2">
-                          {successfulCerts.slice(0, showAllCertificates ? undefined : 10).map((cert, index) => (
+                      {showAllCertificates && (
+                        <div className="max-h-96 overflow-y-auto space-y-2 pr-2">
+                          {successfulCerts.slice(0, showAllCertificates ? undefined : 5).map((cert, index) => (
                             <motion.div
                               key={cert.id}
-                              initial={{ opacity: 0, x: -10 }}
-                              animate={{ opacity: 1, x: 0 }}
-                              transition={{ delay: Math.min(index * 0.02, 0.2) }}
-                              className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 group"
+                              initial={{ opacity: 0, y: 10 }}
+                              animate={{ opacity: 1, y: 0 }}
+                              transition={{ delay: Math.min(index * 0.03, 0.3) }}
+                              className="flex items-center justify-between p-3 bg-white hover:bg-gray-50 rounded-lg border border-gray-200 hover:border-[#4F46E5]/40 transition-all group"
                             >
                               <div className="flex items-center gap-3 min-w-0 flex-1">
-                                <div className="w-8 h-8 bg-[#4F46E5]/10 rounded-lg flex items-center justify-center flex-shrink-0">
-                                  <span className="font-bold text-[#4F46E5] text-sm">{index + 1}</span>
+                                <div className="w-8 h-8 bg-[#4F46E5]/10 rounded-lg flex items-center justify-center flex-shrink-0 group-hover:bg-[#4F46E5]/20 transition-colors">
+                                  <CheckCircle className="w-4 h-4 text-[#4F46E5]" />
                                 </div>
                                 <div className="min-w-0 flex-1">
                                   <p className="font-semibold text-sm text-gray-900 truncate">
                                     {cert.participantName}
                                   </p>
                                   <p className="text-xs text-gray-500">
-                                    {new Date(cert.generatedAt).toLocaleString()}
+                                    Certificate ready
                                   </p>
                                 </div>
                               </div>
                               <button
                                 onClick={() => downloadIndividual(cert.path, certificateMetadata.indexOf(cert))}
-                                className="flex items-center gap-2 px-3 py-1.5 bg-[#4F46E5] hover:bg-[#4338CA] text-white rounded-lg text-sm font-medium transition-colors flex-shrink-0 ml-2"
+                                className="flex items-center gap-1.5 px-3 py-1.5 bg-white hover:bg-[#4F46E5] text-[#4F46E5] hover:text-white border border-[#4F46E5] rounded-lg text-sm font-medium transition-all flex-shrink-0 ml-2"
                               >
                                 <Download className="w-4 h-4" />
-                                <span className="hidden sm:inline">Download</span>
                               </button>
                             </motion.div>
                           ))}
-                          {!showAllCertificates && successfulCerts.length > 10 && (
+                          {!showAllCertificates && successfulCerts.length > 5 && (
                             <button
                               onClick={() => setShowAllCertificates(true)}
-                              className="w-full py-2 text-sm text-[#4F46E5] font-medium hover:underline"
+                              className="w-full py-3 text-sm text-[#4F46E5] font-medium hover:bg-[#4F46E5]/5 rounded-lg transition-colors"
                             >
-                              Show all {successfulCerts.length} certificates
+                              Show {successfulCerts.length - 5} more certificates
                             </button>
                           )}
                         </div>
                       )}
-                      
-                      {!showAllCertificates && total > 50 && (
-                        <p className="text-sm text-gray-500 text-center py-3">
-                          Click to view all {successfulCerts.length} certificates
-                        </p>
-                      )}
                     </div>
                     
-                    {/* Show failed certificates if any */}
+                    {/* Show failed certificates if any - Compact display */}
                     {failedCerts.length > 0 && (
                       <div className="border-t mt-4 pt-4">
-                        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-                          <h4 className="text-sm font-bold text-red-900 mb-2">
-                            Failed Certificates ({failedCerts.length})
-                          </h4>
-                          <div className="space-y-1 max-h-40 overflow-y-auto">
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
+                          <div className="flex items-start gap-2 mb-2">
+                            <div className="w-7 h-7 bg-amber-100 rounded-lg flex items-center justify-center flex-shrink-0">
+                              <X className="w-3.5 h-3.5 text-amber-700" />
+                            </div>
+                            <div className="flex-1">
+                              <h4 className="text-sm font-bold text-amber-900">
+                                {failedCerts.length} Need Review
+                              </h4>
+                            </div>
+                          </div>
+                          <div className="space-y-1 max-h-32 overflow-y-auto">
                             {failedCerts.map((cert) => (
-                              <div key={cert.id} className="text-sm text-red-800 flex items-center gap-2">
-                                <X className="w-3 h-3 flex-shrink-0" />
-                                <span className="truncate">{cert.participantName}</span>
+                              <div key={cert.id} className="text-xs text-amber-900 bg-white/50 px-2 py-1.5 rounded truncate">
+                                {cert.participantName}
                               </div>
                             ))}
                           </div>
@@ -602,44 +585,11 @@ export default function GeneratePage() {
                   </CardContent>
                 </Card>
 
-                {/* Quick Actions */}
-                <Card>
-                  <CardContent className="p-6">
-                    <h4 className="text-lg font-bold text-gray-900 mb-4">What's Next?</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <button
-                        onClick={() => router.push('/upload')}
-                        className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-[#4F46E5] transition-all"
-                      >
-                        <div className="w-12 h-12 bg-[#4F46E5]/10 rounded-lg flex items-center justify-center">
-                          <Zap className="w-6 h-6 text-[#4F46E5]" />
-                        </div>
-                        <div className="text-left">
-                          <p className="font-bold text-gray-900">Create New Batch</p>
-                          <p className="text-xs text-gray-600">Start a new certificate generation</p>
-                        </div>
-                      </button>
-
-                      <button
-                        onClick={() => router.push('/')}
-                        className="flex items-center gap-3 p-4 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 hover:border-[#4F46E5] transition-all"
-                      >
-                        <div className="w-12 h-12 bg-[#22C55E]/10 rounded-lg flex items-center justify-center">
-                          <ArrowLeft className="w-6 h-6 text-[#22C55E]" />
-                        </div>
-                        <div className="text-left">
-                          <p className="font-bold text-gray-900">Back to Home</p>
-                          <p className="text-xs text-gray-600">Return to dashboard</p>
-                        </div>
-                      </button>
-                    </div>
-                  </CardContent>
-                </Card>
               </motion.div>
             )}
 
-            {/* Failed State */}
-            {status === "failed" && (
+            {/* Failed State - Supportive, not scary */}
+            {!isInitializing && status === "failed" && (
               <motion.div
                 key="failed"
                 initial={{ opacity: 0, y: 20 }}
@@ -648,41 +598,52 @@ export default function GeneratePage() {
               >
                 <Card>
                   <CardContent className="p-6 sm:p-8 text-center">
-                    <div className="w-20 h-20 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-6">
-                      <X className="w-10 h-10 text-red-600" />
+                    <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6">
+                      <X className="w-10 h-10 text-amber-600" />
                     </div>
-                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Generation Failed</h2>
-                    <p className="text-gray-600 mb-4">The certificate generation process encountered an error</p>
+                    <h2 className="text-2xl font-bold text-gray-900 mb-2">Something Went Wrong</h2>
+                    <p className="text-gray-600 mb-4">Don't worry — your data is safe. Let's figure this out.</p>
                     
                     {errorMessage && (
-                      <div className="bg-red-50 border border-red-200 rounded-lg p-4 mb-6 text-left max-w-lg mx-auto">
-                        <p className="text-sm font-semibold text-red-900 mb-2">Error Details:</p>
-                        <p className="text-sm text-red-800">{errorMessage}</p>
+                      <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 text-left max-w-lg mx-auto">
+                        <p className="text-sm font-semibold text-amber-900 mb-1">What happened:</p>
+                        <p className="text-sm text-amber-800">{errorMessage}</p>
                       </div>
                     )}
                     
-                    <div className="bg-gray-50 border border-gray-200 rounded-lg p-4 mb-6 text-left max-w-lg mx-auto">
-                      <p className="text-sm font-semibold text-gray-900 mb-2">Common Issues:</p>
-                      <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-                        <li>CSV file contains empty or invalid values</li>
-                        <li>Template fields don't match CSV column names</li>
-                        <li>Network connection interrupted</li>
-                        <li>Server timeout due to large batch size</li>
-                        <li>Template image file is missing or corrupt</li>
+                    <div className="bg-[#4F46E5]/5 border border-[#4F46E5]/20 rounded-lg p-4 mb-6 text-left max-w-lg mx-auto">
+                      <p className="text-sm font-semibold text-gray-900 mb-2 flex items-center gap-2">
+                        <Shield className="w-4 h-4 text-[#4F46E5]" />
+                        Quick Fixes:
+                      </p>
+                      <ul className="text-sm text-gray-700 space-y-2">
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#4F46E5] mt-0.5">•</span>
+                          <span>Check your CSV for empty cells or special characters</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#4F46E5] mt-0.5">•</span>
+                          <span>Verify template fields match CSV column names exactly</span>
+                        </li>
+                        <li className="flex items-start gap-2">
+                          <span className="text-[#4F46E5] mt-0.5">•</span>
+                          <span>Try a smaller batch (under 100 rows) first</span>
+                        </li>
                       </ul>
                     </div>
                     
                     {generated > 0 && (
                       <div className="bg-[#22C55E]/10 border border-[#22C55E]/20 rounded-lg p-4 mb-6 max-w-lg mx-auto">
-                        <p className="text-sm text-[#22C55E] font-medium">
-                          ✓ {generated} certificates were generated before the error
+                        <p className="text-sm text-[#22C55E] font-medium flex items-center gap-2 justify-center">
+                          <CheckCircle className="w-4 h-4" />
+                          Good news: {generated} certificate{generated > 1 ? 's were' : ' was'} created successfully
                         </p>
                       </div>
                     )}
                     
                     <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
                       <BrandButton
-                        variant="primary"
+                        variant="gradient"
                         size="lg"
                         onClick={() => {
                           setStatus("generating");
@@ -694,6 +655,7 @@ export default function GeneratePage() {
                           setErrorMessage("");
                           setCurrentBatch("");
                           setEstimatedTimeRemaining(null);
+                          setIsInitializing(true);
                           generationTimesRef.current = [];
                           startTimeRef.current = Date.now();
                           startGeneration();
@@ -704,12 +666,12 @@ export default function GeneratePage() {
                       </BrandButton>
                       
                       <BrandButton
-                        variant="outline"
+                        variant="secondary"
                         size="lg"
                         onClick={() => router.push('/upload')}
                       >
                         <ArrowLeft className="w-5 h-5" />
-                        Start Over
+                        Start Fresh
                       </BrandButton>
                     </div>
                   </CardContent>

@@ -102,34 +102,70 @@ function cleanTextForRendering(text: string): string {
 }
 
 /**
+ * Calculate baseline offset for text positioning
+ */
+function calculateBaselineOffset(fontSize: number, fontFamily: string): number {
+  // More precise ascent ratios based on font family
+  const font = fontFamily.toLowerCase();
+  
+  if (font.includes('serif') || font.includes('times') || font.includes('garamond')) {
+    return fontSize * 0.78;  // Serif fonts typically have more ascent
+  } else if (font.includes('arial') || font.includes('helvetica')) {
+    return fontSize * 0.76;  // Sans-serif standard
+  } else if (font.includes('roboto') || font.includes('lato')) {
+    return fontSize * 0.77;  // Modern sans-serif
+  } else {
+    return fontSize * 0.77;  // Default approximation
+  }
+}
+
+/**
  * Renders text in a text box with proper alignment and word wrapping
+ */
+/**
+ * Renders text in a text box EXACTLY like the editor
+ * (top-left positioning, no baseline hacks)
  */
 function renderTextInBox(
   ctx: NodeCanvasContext,
   text: string,
   box: TextBox
 ) {
-  const { x, y, width, height, fontSize, fontColor, fontWeight, fontFamily, textAlign } = box;
+  const {
+    x,
+    y,
+    width,
+    fontSize,
+    fontColor,
+    fontWeight,
+    fontFamily,
+    textAlign,
+    lineHeight = 1.2,
+  } = box;
 
-  // Use fallback fonts for better compatibility on serverless environments
+  // Use registered font fallback
   const fallbackFonts = getFontFallback(fontFamily);
   ctx.font = `${fontWeight} ${fontSize}px ${fallbackFonts}`;
   ctx.fillStyle = fontColor;
-  ctx.textBaseline = 'middle';
 
-  // Calculate text alignment offset
+  // IMPORTANT: Match editor model (top-left based)
+  // Use textBaseline 'top' for predictable positioning
+  ctx.textBaseline = 'top';
+  const startY = y;
+
+  // Horizontal alignment
   let textX = x;
+  ctx.textAlign = 'left';
+
   if (textAlign === 'center') {
     textX = x + width / 2;
     ctx.textAlign = 'center';
   } else if (textAlign === 'right') {
     textX = x + width;
     ctx.textAlign = 'right';
-  } else {
-    ctx.textAlign = 'left';
   }
 
-  // Simple word wrapping
+  // Word wrapping (same as editor expectation)
   const words = text.split(' ');
   const lines: string[] = [];
   let currentLine = '';
@@ -137,7 +173,7 @@ function renderTextInBox(
   for (const word of words) {
     const testLine = currentLine ? `${currentLine} ${word}` : word;
     const metrics = ctx.measureText(testLine);
-    
+
     if (metrics.width > width && currentLine) {
       lines.push(currentLine);
       currentLine = word;
@@ -145,19 +181,15 @@ function renderTextInBox(
       currentLine = testLine;
     }
   }
-  if (currentLine) {
-    lines.push(currentLine);
-  }
 
-  // Calculate line height
-  const lineHeight = box.lineHeight || 1.2;
-  const totalHeight = lines.length * fontSize * lineHeight;
-  const startY = y + (height - totalHeight) / 2 + fontSize / 2;
+  if (currentLine) lines.push(currentLine);
 
-  // Draw each line
+  // Draw each line using baseline positioning
   lines.forEach((line, index) => {
     const lineY = startY + index * fontSize * lineHeight;
-    ctx.fillText(line, textX, lineY);
+    // Small font metric normalization to match browser rendering
+    const baselineShift = fontSize * 0.15; // Compensate for DOM vs Canvas differences
+    ctx.fillText(line, textX, lineY + baselineShift);
   });
 }
 
@@ -228,6 +260,8 @@ export async function generateCertificate(
         
         if (value) {  // Only render if we have valid text after cleaning
           console.log(`Rendering text for ${box.key}:`, value, 'Font:', box.fontFamily);
+          console.log(`Box position: (${box.x}, ${box.y}), Font size: ${box.fontSize}`);
+          console.log(`Baseline offset: ${calculateBaselineOffset(box.fontSize, box.fontFamily)}`);
           renderTextInBox(ctx, value, box);
         } else {
           console.warn(`Empty or corrupted value for ${box.key}, skipping`);
