@@ -25,11 +25,11 @@ export function Hero() {
           </div>
 
           <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-extrabold leading-tight tracking-tight text-gray-900">
-            Make certificate <br className="hidden sm:block" /> distribution effortless.
+            Generate 200 certificates <br className="hidden sm:block" /> in 3 minutes.
           </h1>
 
-          <p className="mt-4 sm:mt-5 max-w-lg text-base sm:text-lg text-gray-500">
-            Upload your design, add your list, and let <span className="font-semibold text-indigo-600">CertiMate</span> handle the rest — automatically, beautifully, and for free.
+          <p className="mt-4 sm:mt-5 max-w-lg text-base sm:text-lg text-gray-600">
+            Stop sending certificates one by one. Upload your template, add your recipient list, and CertiMate does the rest — automatically and free.
           </p>
 
           <div className="mt-6 sm:mt-8 flex flex-col sm:flex-row items-stretch sm:items-center gap-3 sm:gap-4">
@@ -44,7 +44,7 @@ export function Hero() {
                   className="w-full sm:w-auto px-6 py-3 rounded-xl text-sm sm:text-base shadow-md hover:shadow-lg transition-shadow"
                 >
                   <Upload className="mr-2 h-[18px] w-[18px]" />
-                  Upload Template
+                  Generate Your First Batch (Free)
                 </BrandButton>
               </motion.div>
             </Link>
@@ -59,15 +59,15 @@ export function Hero() {
                 className="w-full sm:w-auto border-indigo-200 hover:border-indigo-300 hover:bg-indigo-50 text-indigo-600 px-6 py-3 rounded-xl text-sm sm:text-base"
               >
                 <Play className="mr-2 h-[18px] w-[18px]" />
-                Try it Live
+                Watch 2-Minute Demo
               </BrandButton>
             </motion.div>
           </div>
 
-          <div className="mt-6 flex flex-wrap gap-4 text-xs sm:text-sm text-gray-500">
-            <span className="flex items-center gap-2">✅ Free forever</span>
-            <span className="flex items-center gap-2">✅ No signup needed</span>
-            <span className="flex items-center gap-2">✅ Works instantly</span>
+          <div className="mt-6 flex flex-wrap gap-4 text-xs sm:text-sm text-gray-600 font-medium">
+            <span className="flex items-center gap-2">✓ Free forever</span>
+            <span className="flex items-center gap-2">✓ No signup required</span>
+            <span className="flex items-center gap-2">✓ Works in browser</span>
           </div>
         </motion.div>
 

@@ -2,10 +2,10 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { toast } from "sonner";
 import { useGoogleLogin } from "@react-oauth/google";
-import { Mail, Send, FileText, Download, CheckCircle, AlertCircle, Loader2, LogIn } from "lucide-react";
+import { Mail, Send, FileText, Download, CheckCircle, AlertCircle, Loader2, LogIn, Shield, Lock, Eye, EyeOff, Trash2, Clock, Users, CheckCircle2, XCircle } from "lucide-react";
 import axios from "axios";
 import { BrandButton } from "@/components/ui/brand-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,20 @@ export default function SendPageContent() {
   const [googleToken, setGoogleToken] = useState<string | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [hasGoogleClientId, setHasGoogleClientId] = useState(true);
+  
+  // Enhanced progress tracking
+  const [totalRecipients, setTotalRecipients] = useState<number>(0);
+  const [currentRecipient, setCurrentRecipient] = useState<string>("");
+  const [sentCount, setSentCount] = useState<number>(0);
+  const [estimatedTime, setEstimatedTime] = useState<number>(0);
+  
+  // Completion state
+  const [sendComplete, setSendComplete] = useState(false);
+  const [sendResults, setSendResults] = useState<{
+    successful: number;
+    failed: number;
+    total: number;
+  } | null>(null);
 
   // Check if Google Client ID is configured
   useEffect(() => {
@@ -186,6 +200,23 @@ export default function SendPageContent() {
       console.log(`✓ Found ${recipients.length} recipients with valid emails`);
       setSendProgress(40);
 
+      // Set total for progress tracking
+      setTotalRecipients(recipients.length);
+      setEstimatedTime(Math.ceil(recipients.length * 0.8)); // ~0.8s per email
+      
+      // Simulate progressive updates (since backend doesn't stream progress)
+      const progressInterval = setInterval(() => {
+        setSentCount(prev => {
+          if (prev < recipients.length - 1) {
+            const next = prev + 1;
+            setCurrentRecipient(recipients[next]?.name || "");
+            setSendProgress(40 + (next / recipients.length) * 50);
+            return next;
+          }
+          return prev;
+        });
+      }, 800); // Update every 800ms
+
       // Get sessionId for cleanup
       const sessionId = sessionStorage.getItem('sessionId');
 
@@ -199,6 +230,7 @@ export default function SendPageContent() {
         sessionId, // Include for auto-cleanup after sending
       });
 
+      clearInterval(progressInterval); // Stop simulation
       setSendProgress(90);
 
       const { successful, failed, total } = response.data;
@@ -209,6 +241,10 @@ export default function SendPageContent() {
       console.log(`   📁 Total: ${total}\n`);
 
       setSendProgress(100);
+
+      // Store results for completion UI
+      setSendResults({ successful, failed, total });
+      setSendComplete(true);
 
       // Clear sessionId after successful send (files will be auto-deleted)
       if (successful > 0 && sessionId) {
@@ -248,6 +284,8 @@ export default function SendPageContent() {
     } finally {
       setIsSending(false);
       setSendProgress(0);
+      setSentCount(0);
+      setCurrentRecipient("");
     }
   };
 
@@ -295,34 +333,41 @@ export default function SendPageContent() {
               <Card className="border-2 border-indigo-300">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                    <div className="flex items-center gap-3">
-                      <div className="p-2 rounded-lg bg-indigo-100">
-                        <AlertCircle className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
+                    <div className="flex items-start gap-3">
+                      <div className="p-2 rounded-lg bg-indigo-100 flex-shrink-0">
+                        <Mail className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" />
                       </div>
                       <div>
-                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Sign in Required</h3>
-                        <p className="text-xs sm:text-sm text-gray-600">Connect your Gmail account to send certificates</p>
+                        <h3 className="font-semibold text-gray-900 text-sm sm:text-base mb-1">
+                          Connect Gmail to Send Certificates
+                        </h3>
+                        <p className="text-xs sm:text-sm text-gray-600">
+                          Uses official Google Gmail API • Read-only access not requested
+                        </p>
                       </div>
                     </div>
                     <BrandButton
                       variant="gradient"
                       onClick={() => login()}
-                      className="w-full sm:w-auto min-h-[44px]"
+                      className="w-full sm:w-auto min-h-[44px] whitespace-nowrap"
+                      disabled={isSending}
                     >
                       <LogIn className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                      Sign in with Google
+                      Connect Gmail
                     </BrandButton>
                   </div>
                 </CardContent>
               </Card>
             ) : (
-              <Card className="border-2 border-green-500/50">
+              <Card className="border-2 border-green-500/50 bg-gradient-to-br from-green-50/50 to-white">
                 <CardContent className="p-4 sm:p-6">
                   <div className="flex items-center gap-3">
-                    <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 flex-shrink-0" />
-                    <div>
-                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Signed in to Gmail</h3>
-                      <p className="text-xs sm:text-sm text-gray-600">Ready to send certificates</p>
+                    <div className="p-2 rounded-lg bg-green-100">
+                      <CheckCircle className="h-5 w-5 sm:h-6 sm:w-6 text-green-600 flex-shrink-0" />
+                    </div>
+                    <div className="flex-1">
+                      <h3 className="font-semibold text-gray-900 text-sm sm:text-base">Gmail Connected Successfully</h3>
+                      <p className="text-xs sm:text-sm text-gray-600">Ready to send certificates securely from your Gmail account</p>
                     </div>
                   </div>
                 </CardContent>
@@ -346,7 +391,8 @@ export default function SendPageContent() {
                   type="text"
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
-                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all min-h-[44px]"
+                  disabled={isSending || sendComplete}
+                  className="w-full px-3 sm:px-4 py-2.5 sm:py-3 text-sm sm:text-base border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all min-h-[44px] disabled:bg-gray-50 disabled:cursor-not-allowed"
                   placeholder="Your Certificate is Ready!"
                   aria-label="Email subject"
                 />
@@ -375,7 +421,8 @@ export default function SendPageContent() {
                 <textarea
                   value={emailTemplate}
                   onChange={(e) => setEmailTemplate(e.target.value)}
-                  className="w-full h-40 sm:h-48 md:h-64 p-3 sm:p-4 text-sm sm:text-base border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono resize-none transition-all"
+                  disabled={isSending || sendComplete}
+                  className="w-full h-40 sm:h-48 md:h-64 p-3 sm:p-4 text-sm sm:text-base border border-gray-300 bg-white rounded-lg focus:ring-2 focus:ring-indigo-500 focus:border-transparent font-mono resize-none transition-all disabled:bg-gray-50 disabled:cursor-not-allowed"
                   placeholder="Hi {{name}},&#10;&#10;Congratulations on completing {{event}}!"
                   aria-label="Email template"
                 />
@@ -428,102 +475,282 @@ export default function SendPageContent() {
             </Card>
           </motion.div>
 
-          {/* Progress Bar (when sending) */}
-          {isSending && (
+          {/* Enhanced Progress Tracker (when sending) */}
+          <AnimatePresence>
+            {isSending && (
+              <motion.div
+                initial={{ opacity: 0, y: -20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mb-6 sm:mb-8"
+              >
+                <Card className="border-2 border-indigo-300 bg-gradient-to-br from-indigo-50 to-white shadow-lg">
+                  <CardContent className="p-5 sm:p-7">
+                    {/* Header */}
+                    <div className="flex items-center justify-between mb-5">
+                      <div className="flex items-center gap-3">
+                        <div className="relative">
+                          <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
+                          <div className="absolute inset-0 h-6 w-6 rounded-full bg-indigo-200 opacity-30 animate-ping" />
+                        </div>
+                        <div>
+                          <h3 className="font-semibold text-gray-900 text-base sm:text-lg">
+                            Sending Certificates
+                          </h3>
+                          <p className="text-xs sm:text-sm text-gray-600">
+                            Sending certificates securely from your Gmail
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Progress Statistics */}
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-5">
+                      <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Users className="h-4 w-4 text-indigo-600" />
+                          <span className="text-xs text-gray-600">Total</span>
+                        </div>
+                        <p className="text-xl font-bold text-gray-900">{totalRecipients}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-green-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <CheckCircle2 className="h-4 w-4 text-green-600" />
+                          <span className="text-xs text-gray-600">Sent</span>
+                        </div>
+                        <p className="text-xl font-bold text-green-600">{sentCount}</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-gray-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock className="h-4 w-4 text-gray-600" />
+                          <span className="text-xs text-gray-600">ETA</span>
+                        </div>
+                        <p className="text-xl font-bold text-gray-900">~{Math.max(0, estimatedTime - sentCount)}s</p>
+                      </div>
+                      <div className="bg-white rounded-lg p-3 border border-indigo-100">
+                        <div className="flex items-center gap-2 mb-1">
+                          <Mail className="h-4 w-4 text-indigo-600" />
+                          <span className="text-xs text-gray-600">Progress</span>
+                        </div>
+                        <p className="text-xl font-bold text-indigo-600">{Math.round(sendProgress)}%</p>
+                      </div>
+                    </div>
+
+                    {/* Current Recipient */}
+                    {currentRecipient && (
+                      <motion.div
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        className="mb-4 p-3 bg-white rounded-lg border border-indigo-100"
+                      >
+                        <p className="text-xs text-gray-600 mb-1">Currently sending to:</p>
+                        <p className="text-sm font-medium text-gray-900 truncate">{currentRecipient}</p>
+                      </motion.div>
+                    )}
+
+                    {/* Progress Bar */}
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-gray-700 font-medium">
+                          Sending {sentCount} of {totalRecipients} certificates
+                        </span>
+                        <span className="text-indigo-600 font-semibold">
+                          {Math.round(sendProgress)}%
+                        </span>
+                      </div>
+                      <div className="w-full bg-gray-200 rounded-full h-3 overflow-hidden shadow-inner">
+                        <motion.div
+                          initial={{ width: 0 }}
+                          animate={{ width: `${sendProgress}%` }}
+                          transition={{ duration: 0.5, ease: "easeOut" }}
+                          className="bg-gradient-to-r from-indigo-500 via-indigo-600 to-indigo-700 h-full rounded-full relative overflow-hidden"
+                        >
+                          <div className="absolute inset-0 bg-white/20 animate-pulse" />
+                        </motion.div>
+                      </div>
+                      <p className="text-xs text-gray-500 text-center">
+                        Please keep this tab open while certificates are being sent
+                      </p>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Send Completion Summary */}
+          <AnimatePresence>
+            {sendComplete && sendResults && (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="mb-6 sm:mb-8"
+              >
+                <Card className={`border-2 shadow-lg ${
+                  sendResults.failed === 0 
+                    ? 'border-green-500 bg-gradient-to-br from-green-50 to-white' 
+                    : 'border-orange-500 bg-gradient-to-br from-orange-50 to-white'
+                }`}>
+                  <CardContent className="p-5 sm:p-7">
+                    <div className="text-center mb-6">
+                      <div className={`inline-flex items-center justify-center w-16 h-16 rounded-full mb-4 ${
+                        sendResults.failed === 0 ? 'bg-green-100' : 'bg-orange-100'
+                      }`}>
+                        {sendResults.failed === 0 ? (
+                          <CheckCircle className="h-8 w-8 text-green-600" />
+                        ) : (
+                          <AlertCircle className="h-8 w-8 text-orange-600" />
+                        )}
+                      </div>
+                      <h3 className="text-xl sm:text-2xl font-bold text-gray-900 mb-2">
+                        {sendResults.failed === 0 ? 'All Certificates Sent!' : 'Sending Complete'}
+                      </h3>
+                      <p className="text-sm text-gray-600">
+                        {sendResults.failed === 0 
+                          ? 'All certificates were successfully delivered to recipients'
+                          : 'Certificate sending completed with some issues'}
+                      </p>
+                    </div>
+
+                    {/* Results Grid */}
+                    <div className="grid grid-cols-3 gap-4 mb-6">
+                      <div className="text-center p-4 bg-white rounded-lg border border-gray-200">
+                        <Users className="h-5 w-5 text-gray-600 mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-gray-900">{sendResults.total}</p>
+                        <p className="text-xs text-gray-600">Total</p>
+                      </div>
+                      <div className="text-center p-4 bg-green-50 rounded-lg border border-green-200">
+                        <CheckCircle2 className="h-5 w-5 text-green-600 mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-green-600">{sendResults.successful}</p>
+                        <p className="text-xs text-gray-600">Sent</p>
+                      </div>
+                      <div className="text-center p-4 bg-red-50 rounded-lg border border-red-200">
+                        <XCircle className="h-5 w-5 text-red-600 mx-auto mb-2" />
+                        <p className="text-2xl font-bold text-red-600">{sendResults.failed}</p>
+                        <p className="text-xs text-gray-600">Failed</p>
+                      </div>
+                    </div>
+
+                    {/* Next Steps */}
+                    <div className="bg-indigo-50 rounded-lg p-4 border border-indigo-100">
+                      <p className="text-sm font-medium text-indigo-900 mb-3">What's next?</p>
+                      <div className="flex flex-col sm:flex-row gap-3">
+                        <BrandButton
+                          variant="gradient"
+                          size="lg"
+                          className="flex-1"
+                          onClick={() => {
+                            setSendComplete(false);
+                            setSendResults(null);
+                            router.push("/upload");
+                          }}
+                        >
+                          Start New Batch
+                        </BrandButton>
+                        <BrandButton
+                          variant="outline"
+                          size="lg"
+                          className="flex-1"
+                          onClick={handleDownload}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Download ZIP
+                        </BrandButton>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          {/* Send Summary Info */}
+          {!sendComplete && (
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="mb-6 sm:mb-8"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.35, duration: 0.5 }}
+              className="mb-6"
             >
-              <Card className="bg-indigo-50 border-indigo-200">
+              <Card className="border-indigo-200 bg-gradient-to-br from-indigo-50/50 to-white">
                 <CardContent className="p-4 sm:p-6">
-                  <div className="flex items-center gap-3 mb-4">
-                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 animate-spin text-indigo-600" />
-                    <span className="font-semibold text-gray-900 text-sm sm:text-base">Sending certificates...</span>
+                  <div className="space-y-3">
+                    <div className="flex items-start gap-3">
+                      <Shield className="h-5 w-5 text-indigo-600 flex-shrink-0 mt-0.5" />
+                      <div>
+                        <p className="text-sm font-semibold text-gray-900 mb-1">Ready to Send</p>
+                        <p className="text-xs sm:text-sm text-gray-700 leading-relaxed">
+                          Certificates will be sent from your Gmail account with personalized messages for each recipient. 
+                          Each email is customized with the participant's name and includes their certificate as an attachment.
+                        </p>
+                      </div>
+                    </div>
+                    {isAuthenticated && (
+                      <div className="flex items-center gap-2 pt-2 border-t border-indigo-100">
+                        <CheckCircle2 className="h-4 w-4 text-green-600" />
+                        <p className="text-xs text-gray-700 font-medium">
+                          Gmail connected • Emails will be sent securely • Session data auto-deleted
+                        </p>
+                      </div>
+                    )}
                   </div>
-                  <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-                    <motion.div
-                      initial={{ width: 0 }}
-                      animate={{ width: `${sendProgress}%` }}
-                      transition={{ duration: 0.3, ease: "easeOut" }}
-                      className="bg-gradient-to-r from-indigo-500 to-indigo-600 h-full"
-                    />
-                  </div>
-                  <p className="text-xs sm:text-sm text-gray-600 mt-2">{sendProgress.toFixed(0)}% complete</p>
                 </CardContent>
               </Card>
             </motion.div>
           )}
 
-          {/* Send Summary Info */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.35, duration: 0.5 }}
-            className="mb-6"
-          >
-            <Card className="border-blue-200 bg-blue-50">
-              <CardContent className="p-4 sm:p-6">
-                <div className="space-y-2">
-                  <p className="text-sm text-blue-900 font-semibold">📊 Send Summary</p>
-                  <p className="text-xs sm:text-sm text-blue-800">
-                    This will send personalized emails to all participants with their certificates attached. Each email will be customized with the recipient's name.
-                  </p>
-                  <p className="text-xs sm:text-sm text-blue-700 font-medium">
-                    ✓ Signed in to Google • Ready to send
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-
           {/* Actions */}
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.4, duration: 0.5 }}
-            className="flex flex-col sm:flex-row gap-3 sm:gap-4"
-          >
-            <BrandButton
-              variant="gradient"
-              size="lg"
-              className="flex-1 min-h-[44px]"
-              onClick={handleSend}
-              disabled={isSending || !isAuthenticated}
-              aria-label={isSending ? "Sending certificates" : "Send all certificates"}
+          {!sendComplete && (
+            <motion.div
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.4, duration: 0.5 }}
+              className="flex flex-col sm:flex-row gap-3 sm:gap-4"
             >
-              {isSending ? (
-                <>
-                  <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-                  Send All Certificates
-                </>
-              )}
-            </BrandButton>
-            <BrandButton
-              variant="outline"
-              size="lg"
-              className="flex-1 min-h-[44px]"
-              onClick={handleDownload}
-              aria-label="Download ZIP file"
-            >
-              <Download className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
-              Download ZIP Instead
-            </BrandButton>
-            <BrandButton
-              variant="secondary"
-              size="lg"
-              className="flex-1 sm:flex-none min-h-[44px]"
-              onClick={() => router.push("/upload")}
-              aria-label="Start new generation"
-            >
-              Generate New
-            </BrandButton>
-          </motion.div>
+              <BrandButton
+                variant="gradient"
+                size="lg"
+                className="flex-1 min-h-[44px]"
+                onClick={handleSend}
+                disabled={isSending || !isAuthenticated}
+                aria-label={isSending ? "Sending certificates" : "Send all certificates"}
+              >
+                {isSending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 sm:h-5 sm:w-5 mr-2 animate-spin" />
+                    Sending...
+                  </>
+                ) : (
+                  <>
+                    <Send className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                    Send All Certificates
+                  </>
+                )}
+              </BrandButton>
+              <BrandButton
+                variant="outline"
+                size="lg"
+                className="flex-1 min-h-[44px]"
+                onClick={handleDownload}
+                disabled={isSending}
+                aria-label="Download ZIP file"
+              >
+                <Download className="h-4 w-4 sm:h-5 sm:w-5 mr-2" />
+                Download ZIP Instead
+              </BrandButton>
+              <BrandButton
+                variant="secondary"
+                size="lg"
+                className="flex-1 sm:flex-none min-h-[44px]"
+                onClick={() => router.push("/upload")}
+                disabled={isSending}
+                aria-label="Start new generation"
+              >
+                Generate New
+              </BrandButton>
+            </motion.div>
+          )}
         </div>
       </div>
     </PageLayout>

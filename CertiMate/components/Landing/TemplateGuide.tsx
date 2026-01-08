@@ -19,26 +19,32 @@ export function TemplateGuide() {
         >
           <div className="text-center mb-12">
             <h2 className="text-4xl md:text-5xl font-bold text-gray-900 mb-4">
-              Your template, your style — we just make it smarter
+              Use the designs you already have.
             </h2>
+            <p className="text-lg text-gray-600 max-w-2xl mx-auto">
+              Whether it's Canva, Photoshop, or PowerPoint — CertiMate works with them all.
+            </p>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
             {/* Instructions */}
             <Card className="border-2 border-indigo-100 bg-gradient-to-br from-indigo-50 to-white">
               <CardContent className="p-8">
-                <div className="space-y-6 text-gray-700">
+                <h3 className="text-2xl font-bold text-gray-900 mb-6">
+                  In 3 easy steps:
+                </h3>
+                <div className="space-y-5 text-gray-700">
                   <div className="flex gap-4">
-                    <span className="text-indigo-600 font-bold text-xl">1.</span>
-                    <p>Design your certificate in Canva/Photoshop</p>
+                    <span className="text-indigo-600 font-bold text-lg flex-shrink-0">1.</span>
+                    <p className="text-base leading-relaxed">Design your certificate with any tool (Canva, Photoshop, even PowerPoint)</p>
                   </div>
                   <div className="flex gap-4">
-                    <span className="text-indigo-600 font-bold text-xl">2.</span>
-                    <p>Add placeholders like <code className="bg-indigo-100 px-2 py-1 rounded font-mono text-indigo-700">{"{{name}}"}</code>, <code className="bg-indigo-100 px-2 py-1 rounded font-mono text-indigo-700">{"{{event}}"}</code>, <code className="bg-indigo-100 px-2 py-1 rounded font-mono text-indigo-700">{"{{date}}"}</code></p>
+                    <span className="text-indigo-600 font-bold text-lg flex-shrink-0">2.</span>
+                    <p className="text-base leading-relaxed">Add placeholders: <code className="bg-indigo-100 px-2 py-1 rounded font-mono text-indigo-700 text-sm">{"{{name}}"}</code>, <code className="bg-indigo-100 px-2 py-1 rounded font-mono text-indigo-700 text-sm">{"{{date}}"}</code></p>
                   </div>
                   <div className="flex gap-4">
-                    <span className="text-indigo-600 font-bold text-xl">3.</span>
-                    <p>Upload and automate</p>
+                    <span className="text-indigo-600 font-bold text-lg flex-shrink-0">3.</span>
+                    <p className="text-base leading-relaxed">Upload and let CertiMate fill everything in</p>
                   </div>
                 </div>
               </CardContent>
@@ -76,10 +82,10 @@ export function TemplateGuide() {
             viewport={{ once: true }}
             className="text-center"
           >
-            <Link href="/upload">
+            <Link href="/generate">
               <BrandButton variant="gradient" size="lg" className="px-8 py-6">
                 <Download className="h-5 w-5 mr-2" />
-                Download Sample Template
+                Start Building Certificates
               </BrandButton>
             </Link>
           </motion.div>

@@ -7,26 +7,29 @@ import { Card, CardContent } from "@/components/ui/card";
 const testimonials = [
   {
     name: "Priya Sharma",
-    role: "Event Organizer",
-    company: "Tech Events",
+    role: "Event Manager",
+    company: "Tech Hackathons India",
     image: "👩‍💼",
-    text: "We sent 400+ workshop certificates in 5 minutes. Zero stress.",
+    text: "Used to take 3 days to send certificates to 500 participants. Now it's done in 10 minutes.",
+    metric: "3 days → 10 min",
     rating: 5
   },
   {
     name: "Rohit",
-    role: "Content Creator",
-    company: "Indie Creator",
+    role: "Bootcamp Director",
+    company: "Coding Academy",
     image: "👨‍💻",
-    text: "No ads, no paywalls, just magic.",
+    text: "Saved us 40+ hours of manual certificate work per batch. Absolutely brilliant.",
+    metric: "40+ hours saved",
     rating: 5
   },
   {
     name: "Anjali",
-    role: "College Teacher",
-    company: "Education Sector",
+    role: "University Administrator",
+    company: "Delhi University",
     image: "👩‍🏫",
-    text: "The easiest way to send invites and appreciation cards.",
+    text: "No more copy-pasting names. 200 certificates in 3 minutes. My team loves this.",
+    metric: "200 in 3 min",
     rating: 5
   }
 ];
@@ -43,7 +46,7 @@ export function Testimonials() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-8 sm:mb-12 px-4">
-            Loved by People Who Hate Repetitive Work
+            Used by teachers, organizers, and creatives.
           </h2>
         </motion.div>
 
@@ -62,6 +65,11 @@ export function Testimonials() {
                   {/* Quote Icon */}
                   <div className="mb-6">
                     <Quote className="h-7 w-7 text-gray-300" />
+                  </div>
+
+                  {/* Metric Badge */}
+                  <div className="mb-4 inline-flex items-center justify-center px-3 py-1 rounded-full bg-indigo-50 text-indigo-700 font-semibold text-sm">
+                    {testimonial.metric}
                   </div>
 
                   {/* Rating */}

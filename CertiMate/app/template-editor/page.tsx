@@ -189,17 +189,38 @@ import type { TextBox, CertificateTemplate } from '@/types/template';
   /* ---------------- UI ---------------- */
 
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 10 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
       className="min-h-screen bg-[#f2f3f5] overflow-auto"
       onMouseMove={handleMouseMove}
       onMouseUp={handleMouseUp}
       onMouseLeave={handleMouseUp}
     >
-      {/* CONTINUE */}
+      {/* CONTINUE & GUIDE */}
       <div className="fixed top-6 right-6 z-50">
         <BrandButton onClick={saveTemplate} disabled={!textBoxes.length}>
           Continue
         </BrandButton>
+        
+        {/* Quick Guide */}
+        <motion.div
+          initial={{ opacity: 0, y: 5 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.4 }}
+          className="mt-3 bg-white/95 backdrop-blur-sm rounded-lg p-3 shadow-lg border border-gray-200 max-w-[220px]"
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm">💡</span>
+            <span className="text-xs font-semibold text-gray-700">Quick Start</span>
+          </div>
+          <div className="space-y-1.5 text-[11px] text-gray-600 leading-relaxed">
+            <div>• Click template to add fields</div>
+            <div>• Drag to reposition</div>
+            <div>• Add name, date, or custom</div>
+          </div>
+        </motion.div>
       </div>
 
       {/* CANVAS */}
@@ -373,6 +394,6 @@ import type { TextBox, CertificateTemplate } from '@/types/template';
           </motion.div>
         )}
       </AnimatePresence>
-    </div>
+    </motion.div>
   );
 }

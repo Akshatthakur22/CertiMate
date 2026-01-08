@@ -18,10 +18,10 @@ export function Demo() {
           className="text-center mb-16"
         >
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4 px-4">
-            See how CertiMate brings your design to life
+            Real workflow. No signup.
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 max-w-3xl mx-auto px-4">
-            Watch your plain template turn into ready-to-send personalized certificates — in seconds.
+            Watch how a blank template becomes personalized, ready-to-send certificates in seconds.
           </p>
         </motion.div>
 

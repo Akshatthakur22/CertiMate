@@ -1,45 +1,33 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Wand2, Mail, Zap, Shield, Sparkles, Infinity } from "lucide-react";
+import { Zap, Mail, Shield, Infinity } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 
 const features = [
   {
     icon: Zap,
-    title: "Smart Automation",
-    description: "Handles repetitive tasks automatically so you can focus on what matters",
+    title: "Automate Everything",
+    description: "Fill hundreds of certificates in seconds. No copy-paste, no manual work.",
     color: "text-indigo-600"
   },
   {
     icon: Mail,
-    title: "Bulk Email Sender",
-    description: "Send personalized certificates to everyone in your list — instantly",
+    title: "Send in Bulk",
+    description: "Email all recipients at once with personalized attachments.",
     color: "text-violet-600"
-  },
-  {
-    icon: Wand2,
-    title: "AI Name Placement",
-    description: "Automatically detects where to place names in your design using advanced OCR",
-    color: "text-purple-600"
-  },
-  {
-    icon: Sparkles,
-    title: "Template Flexibility",
-    description: "Use any design tool you prefer — Canva, Photoshop, or even PowerPoint",
-    color: "text-blue-600"
-  },
-  {
-    icon: Shield,
-    title: "Secure & Private",
-    description: "Your data is encrypted and never shared with third parties",
-    color: "text-pink-600"
   },
   {
     icon: Infinity,
     title: "Free Forever",
-    description: "No hidden costs, no credit card required — truly free forever",
+    description: "No hidden fees, no credit card, no nonsense. Always free.",
     color: "text-green-600"
+  },
+  {
+    icon: Shield,
+    title: "Your Data is Safe",
+    description: "Encrypted, private, never shared. Your certificates stay yours.",
+    color: "text-pink-600"
   }
 ];
 
@@ -55,14 +43,14 @@ export function Features() {
           className="text-center mb-12 sm:mb-16"
         >
           <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 mb-3 sm:mb-4 px-4">
-            Designed to save your time and sanity
+            Everything you need. Nothing you don't.
           </h2>
           <p className="text-lg sm:text-xl text-gray-600 max-w-2xl mx-auto px-4">
-            CertiMate does the boring work so you can focus on what actually matters.
+            Built for speed, simplicity, and peace of mind.
           </p>
         </motion.div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6 max-w-7xl mx-auto">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 max-w-7xl mx-auto">
           {features.map((feature, index) => (
             <motion.div
               key={index}
