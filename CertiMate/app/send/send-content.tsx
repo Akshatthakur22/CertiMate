@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { useGoogleLogin } from "@react-oauth/google";
 import { Mail, Send, FileText, Download, CheckCircle, AlertCircle, Loader2, LogIn, Shield, Lock, Eye, EyeOff, Trash2, Clock, Users, CheckCircle2, XCircle } from "lucide-react";
 import axios from "axios";
+import { randomInt } from "@/lib/email-throttle";
 import { BrandButton } from "@/components/ui/brand-button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageLayout } from "@/components/layout/page-layout";
@@ -105,6 +106,23 @@ export default function SendPageContent() {
     }
   }, [googleToken]);
 
+  // Persist minimal job state for resume
+  const saveJobState = (state: any) => {
+    sessionStorage.setItem('emailJobState', JSON.stringify(state));
+  };
+
+  const loadJobState = () => {
+    const raw = sessionStorage.getItem('emailJobState');
+    if (!raw) return null;
+    try { return JSON.parse(raw); } catch { return null; }
+  };
+
+  const clearJobState = () => {
+    sessionStorage.removeItem('emailJobState');
+  };
+
+  const sleep = (ms: number) => new Promise(res => setTimeout(res, ms));
+
   const handleSend = async () => {
     if (!isAuthenticated || !googleToken) {
       toast.error("Please sign in with Google first");
@@ -200,63 +218,90 @@ export default function SendPageContent() {
       console.log(`✓ Found ${recipients.length} recipients with valid emails`);
       setSendProgress(40);
 
-      // Set total for progress tracking
+      // Set totals for progress tracking
       setTotalRecipients(recipients.length);
-      setEstimatedTime(Math.ceil(recipients.length * 0.8)); // ~0.8s per email
-      
-      // Simulate progressive updates (since backend doesn't stream progress)
-      const progressInterval = setInterval(() => {
-        setSentCount(prev => {
-          if (prev < recipients.length - 1) {
-            const next = prev + 1;
-            setCurrentRecipient(recipients[next]?.name || "");
-            setSendProgress(40 + (next / recipients.length) * 50);
-            return next;
-          }
-          return prev;
-        });
-      }, 800); // Update every 800ms
+      setEstimatedTime(Math.ceil(recipients.length * 10));
 
-      // Get sessionId for cleanup
+      // Get sessionId (for potential cleanup in future)
       const sessionId = sessionStorage.getItem('sessionId');
 
-      // Send emails via API
-      const response = await axios.post('/api/send', {
+      // Initialize client-driven batch plan
+      const startResp = await axios.post('/api/send/start', {
         access_token: googleToken,
-        recipients: recipients,
+        recipients,
         subject: subject.trim(),
         body_template: emailTemplate,
-        certificates_dir: 'uploads/certificates',
-        sessionId, // Include for auto-cleanup after sending
       });
 
-      clearInterval(progressInterval); // Stop simulation
-      setSendProgress(90);
+      const { jobId, mode, total, batchSize, cooldownRange } = startResp.data;
+      if (!jobId || !batchSize) throw new Error('Failed to initialize email job');
 
-      const { successful, failed, total } = response.data;
-
-      console.log(`\n📊 Send Results:`);
-      console.log(`   ✓ Successful: ${successful}`);
-      console.log(`   ✗ Failed: ${failed}`);
-      console.log(`   📁 Total: ${total}\n`);
-
-      setSendProgress(100);
-
-      // Store results for completion UI
-      setSendResults({ successful, failed, total });
-      setSendComplete(true);
-
-      // Clear sessionId after successful send (files will be auto-deleted)
-      if (successful > 0 && sessionId) {
-        sessionStorage.removeItem('sessionId');
+      const totalCount = total || recipients.length;
+      const batches: any[][] = [];
+      for (let i = 0; i < totalCount; i += batchSize) {
+        batches.push(recipients.slice(i, i + batchSize));
       }
 
-      if (failed === 0) {
-        toast.success(`Successfully sent all ${successful} certificates via email! Files cleaned up.`);
-      } else if (successful > 0) {
-        toast.warning(`Sent ${successful} of ${total} certificates. ${failed} failed.`);
+      const jobState = {
+        jobId,
+        mode,
+        total: totalCount,
+        batchSize,
+        cooldownRange,
+        currentBatchIndex: 0,
+        sent: 0,
+        failed: 0,
+      };
+      sessionStorage.setItem('emailJobState', JSON.stringify(jobState));
+
+      setTotalRecipients(totalCount);
+      const totalBatches = batches.length;
+
+      for (let b = jobState.currentBatchIndex; b < totalBatches; b++) {
+        setCurrentRecipient(`Batch ${b + 1}/${totalBatches}`);
+        setSendProgress(Math.max(40, Math.round(((b) / totalBatches) * 100)));
+
+        const batch = batches[b];
+        const batchResp = await axios.post('/api/send/batch', {
+          access_token: googleToken,
+          jobId,
+          batchIndex: b,
+          mode,
+          recipients: batch,
+          subject: subject.trim(),
+          body_template: emailTemplate,
+          certificates_dir: 'uploads/certificates',
+        });
+
+        const { sent, failed } = batchResp.data;
+        jobState.sent += sent;
+        jobState.failed += failed;
+        jobState.currentBatchIndex = b + 1;
+        sessionStorage.setItem('emailJobState', JSON.stringify(jobState));
+
+        setSentCount(jobState.sent);
+        const percent = Math.min(99, Math.round((jobState.sent / totalCount) * 100));
+        setSendProgress(Math.max(40, percent));
+
+        if (b < totalBatches - 1) {
+          const waitSec = randomInt(cooldownRange?.minSeconds || 60, cooldownRange?.maxSeconds || 180);
+          toast.message(`Cooling down ${waitSec}s before next batch`);
+          await new Promise(res => setTimeout(res, waitSec * 1000));
+        }
+      }
+
+      // Completed
+      setSendProgress(100);
+      setSendResults({ successful: jobState.sent, failed: jobState.failed, total: totalCount });
+      setSendComplete(true);
+      sessionStorage.removeItem('emailJobState');
+      if (jobState.sent > 0 && sessionId) sessionStorage.removeItem('sessionId');
+      if (jobState.failed === 0) {
+        toast.success(`Successfully sent all ${jobState.sent} certificates via email! Files cleaned up.`);
+      } else if (jobState.sent > 0) {
+        toast.warning(`Sent ${jobState.sent} of ${totalCount} certificates. ${jobState.failed} failed.`);
       } else {
-        toast.error(`All ${failed} emails failed to send. Please check your Gmail permissions.`);
+        toast.error(`All ${jobState.failed} emails failed to send. Please check your Gmail permissions.`);
       }
 
     } catch (error: any) {
@@ -283,11 +328,18 @@ export default function SendPageContent() {
       }
     } finally {
       setIsSending(false);
-      setSendProgress(0);
-      setSentCount(0);
-      setCurrentRecipient("");
     }
   };
+
+  // Attempt resume if there is an unfinished job
+  useEffect(() => {
+    const raw = sessionStorage.getItem('emailJobState');
+    if (raw && !sendComplete && !isSending) {
+      toast.info('Resuming pending email sending job...');
+      handleSend();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleDownload = () => {
     const downloadUrl = sessionStorage.getItem("downloadUrl");
